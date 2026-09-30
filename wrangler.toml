@@ -1,0 +1,9 @@
+name = "fox-ai"
+main = "src/functions/api.js"
+compatibility_date = "2024-11-01"
+
+[ai]
+binding = "AI"
+
+[site]
+bucket = "./dist"

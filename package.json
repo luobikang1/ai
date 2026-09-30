@@ -1,0 +1,21 @@
+{
+  "name": "fox-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "狐AI - 极简高颜值的 AI 绘图 & 创作工作台",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-static": "^0.469.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.7"
+  }
+}
