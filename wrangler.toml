@@ -5,11 +5,13 @@ pages_build_output_dir = "./dist"
 [ai]
 binding = "AI"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "fox_ai_db"
-database_id = "your-d1-database-id-here"
+# To enable Cloudflare D1 Database binding, uncomment and replace database_id with your real D1 UUID:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "fox_ai_db"
+# database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
-[[r2_buckets]]
-binding = "FOX_BUCKET"
-bucket_name = "fox-ai-storage"
+# To enable Cloudflare R2 Object Storage binding, uncomment and bind your R2 bucket:
+# [[r2_buckets]]
+# binding = "FOX_BUCKET"
+# bucket_name = "fox-ai-storage"
