@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" fill="none">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#31102f"/>
+    </linearGradient>
+    <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="675" fill="url(#bg-grad)"/>
+  <circle cx="200" cy="150" r="250" fill="#f97316" opacity="0.08"/>
+  <circle cx="1000" cy="500" r="300" fill="#a855f7" opacity="0.08"/>
+
+  <!-- Top Header Mockup -->
+  <rect x="40" y="30" width="1120" height="60" rx="16" fill="url(#card-grad)" stroke="#334155" stroke-width="1"/>
+  <rect x="60" y="45" width="30" height="30" rx="8" fill="url(#brand-grad)"/>
+  <text x="68" y="66" font-family="system-ui, sans-serif" font-size="18" fill="#ffffff">🦊</text>
+  <text x="100" y="66" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="url(#brand-grad)">狐AI (Fox AI)</text>
+  <text x="210" y="65" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">极简高颜值 AI 绘图创作工作台 • Edge Native</text>
+
+  <!-- Navigation Tabs Mockup -->
+  <rect x="750" y="43" width="390" height="34" rx="10" fill="#0f172a" stroke="#1e293b"/>
+  <rect x="755" y="46" width="70" height="28" rx="8" fill="#f97316" opacity="0.2"/>
+  <text x="765" y="64" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#f97316">🎨 文生图</text>
+  <text x="840" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">🖼️ 图生图</text>
+  <text x="910" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">📦 模型库</text>
+  <text x="980" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">💬 AI翻译</text>
+  <text x="1055" y="64" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8">⚙️ 设置</text>
+
+  <!-- Left Panel: Prompt & Controls -->
+  <rect x="40" y="110" width="660" height="525" rx="20" fill="url(#card-grad)" stroke="#334155" stroke-width="1"/>
+
+  <!-- Active Model Selector -->
+  <rect x="60" y="130" width="620" height="60" rx="12" fill="#0f172a" stroke="#1e293b"/>
+  <rect x="75" y="142" width="36" height="36" rx="8" fill="#3b82f6" opacity="0.3"/>
+  <text x="85" y="165" font-family="system-ui, sans-serif" font-size="16" fill="#3b82f6">⚡</text>
+  <text x="125" y="152" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">SDXL Lightning (极速极清版)</text>
+  <text x="125" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#10b981">● 免 Key 极速算力 (Cloudflare Workers AI Binding)</text>
+  <rect x="580" y="145" width="80" height="30" rx="8" fill="#334155"/>
+  <text x="593" y="164" font-family="system-ui, sans-serif" font-size="11" fill="#e2e8f0">切换模型 🔄</text>
+
+  <!-- Prompt Box -->
+  <text x="60" y="215" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#cbd5e1">💡 正向提示词 (Prompt)</text>
+  <text x="530" y="215" font-family="system-ui, sans-serif" font-size="11" fill="#f97316">🌐 中英双向翻译 / 智能爆款增强</text>
+  <rect x="60" y="225" width="620" height="80" rx="12" fill="#0f172a" stroke="#1e293b"/>
+  <text x="75" y="250" font-family="monospace" font-size="12" fill="#f1f5f9">Cyberpunk fox warrior in golden armor, neon city, chinese poster style,</text>
+  <text x="75" y="270" font-family="monospace" font-size="12" fill="#f1f5f9">8k resolution, masterpiece, highly detailed, octane render, cinematic lighting</text>
+
+  <!-- Style Tags Bar -->
+  <text x="60" y="330" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#cbd5e1">🎨 艺术风格预设</text>
+  <rect x="60" y="340" width="70" height="28" rx="8" fill="#f97316"/>
+  <text x="72" y="358" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#ffffff">国风海报</text>
+  <rect x="140" y="340" width="70" height="28" rx="8" fill="#1e293b"/>
+  <text x="152" y="358" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">日系动漫</text>
+  <rect x="220" y="340" width="70" height="28" rx="8" fill="#1e293b"/>
+  <text x="232" y="358" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">写实人像</text>
+  <rect x="300" y="340" width="70" height="28" rx="8" fill="#1e293b"/>
+  <text x="312" y="358" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">赛博朋克</text>
+  <rect x="380" y="340" width="70" height="28" rx="8" fill="#1e293b"/>
+  <text x="392" y="358" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">3D皮克斯</text>
+
+  <!-- Aspect Ratios -->
+  <text x="60" y="395" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#cbd5e1">📐 图像比例</text>
+  <rect x="60" y="405" width="190" height="42" rx="10" fill="#f97316" opacity="0.15" stroke="#f97316"/>
+  <text x="120" y="423" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#f97316">1 : 1</text>
+  <text x="105" y="438" font-family="system-ui, sans-serif" font-size="10" fill="#f97316">1024 × 1024</text>
+
+  <rect x="275" y="405" width="190" height="42" rx="10" fill="#0f172a" stroke="#1e293b"/>
+  <text x="335" y="423" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#94a3b8">3 : 4</text>
+  <text x="320" y="438" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">768 × 1024</text>
+
+  <rect x="490" y="405" width="190" height="42" rx="10" fill="#0f172a" stroke="#1e293b"/>
+  <text x="550" y="423" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#94a3b8">4 : 3</text>
+  <text x="535" y="438" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">1024 × 768</text>
+
+  <!-- Generate Button -->
+  <rect x="60" y="475" width="620" height="50" rx="14" fill="url(#brand-grad)"/>
+  <text x="300" y="506" font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">✨ 立即开始智能绘制 (100% 免 Key 运行)</text>
+
+  <text x="60" y="565" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">系统特点: 支持 Cloudflare Workers/Pages 边缘零成本部署 | 自动持久化本地历史记录 | 支持中英双向AI翻译</text>
+
+  <!-- Right Panel: Result Preview & Art Display -->
+  <rect x="720" y="110" width="440" height="525" rx="20" fill="url(#card-grad)" stroke="#334155" stroke-width="1"/>
+  <text x="740" y="135" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#cbd5e1">🖼️ 实时绘图工作台预览</text>
+  <text x="1080" y="135" font-family="system-ui, sans-serif" font-size="11" fill="#10b981">🟢 绘制就绪</text>
+
+  <!-- Artwork Canvas -->
+  <rect x="740" y="150" width="400" height="400" rx="16" fill="#020617" stroke="#1e293b"/>
+  <!-- Decorative AI Generated Artwork Canvas Graphic -->
+  <circle cx="940" cy="330" r="140" fill="#f97316" opacity="0.3"/>
+  <polygon points="940,230 1020,380 860,380" fill="#ea580c" opacity="0.6"/>
+  <circle cx="940" cy="310" r="35" fill="#fef08a"/>
+  <path d="M 800 480 Q 940 400 1080 480 L 1080 550 L 800 550 Z" fill="#1e1b4b"/>
+  <text x="940" y="320" font-family="system-ui, sans-serif" font-size="64" text-anchor="middle" fill="#ffffff">🦊</text>
+  <text x="940" y="520" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#f8fafc">狐AI - 国风赛博极清海报</text>
+
+  <!-- Action Bar -->
+  <rect x="740" y="565" width="190" height="38" rx="10" fill="#1e293b"/>
+  <text x="795" y="589" font-family="system-ui, sans-serif" font-size="12" fill="#e2e8f0">📥 下载高清原图</text>
+  <rect x="950" y="565" width="190" height="38" rx="10" fill="#1e293b"/>
+  <text x="1005" y="589" font-family="system-ui, sans-serif" font-size="12" fill="#e2e8f0">🔄 一键同款生图</text>
+
+</svg>
