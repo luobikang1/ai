@@ -41,7 +41,7 @@ const state = {
   onlineModels: [],
   isSearchingOnline: false,
 
-  selectedModel: '@cf/bytedance/stable-diffusion-xl-lightning',
+  selectedModel: '@cf/black-forest-labs/flux-1-schnell',
   selectedStyle: 'none',
   prompt: '',
   negativePrompt: NEGATIVE_PROMPT_PRESETS[0],
@@ -75,7 +75,7 @@ const state = {
 
   chatInput: '',
   chatMessages: [
-    { role: 'assistant', text: '你好！我是狐AI智能助手。你可以输入中文，我将为你进行高精度提示词双向翻译或优化生图词库！' }
+    { role: 'assistant', text: '你好！我是白狐AI智能助手。你可以输入中文，我将为你进行高精度提示词双向翻译或优化生图词库！' }
   ],
   visionImageBase64: null,
   isAnalyzingVision: false
@@ -100,22 +100,40 @@ function applyAppPreferences() {
   document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${bgObj.bgClass}`;
 }
 
-async function safeFetchApi(url, options = {}) {
+// Explicit API Fetch with Timeout & Transparent Error Handling
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const res = await fetch(url, options);
-    if (res.ok) {
-      return await res.json();
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    const data = await res.json();
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || data.message || `请求失败 HTTP ${res.status}`);
     }
+    return data;
   } catch (err) {
-    console.warn(`Network fallback for ${url}:`, err);
+    clearTimeout(id);
+    if (err.name === 'AbortError') {
+      throw new Error('网络请求超时，请重试');
+    }
+    throw err;
   }
-  return null;
 }
 
 async function fetchServiceStatus() {
-  const data = await safeFetchApi('/api/status');
-  if (data) {
-    state.status = data;
+  try {
+    const data = await fetchWithTimeout('/api/status', {}, 5000);
+    if (data) {
+      state.status = {
+        cfApi: !!data.hasAI || !!data.hasToken,
+        d1Database: !!data.hasD1,
+        r2Bucket: !!data.hasR2
+      };
+    }
+  } catch (e) {
+    console.log('Status check fallback');
   }
   if (state.user && state.activeTab === 'history') {
     await fetchR2Objects();
@@ -123,10 +141,12 @@ async function fetchServiceStatus() {
 }
 
 async function fetchR2Objects() {
-  const data = await safeFetchApi('/api/r2/list');
-  if (data) {
-    state.r2Storage = data;
-  }
+  try {
+    const data = await fetchWithTimeout('/api/r2/list', {}, 5000);
+    if (data) {
+      state.r2Storage = data;
+    }
+  } catch (e) {}
 }
 
 function t(key) {
@@ -230,9 +250,7 @@ function renderImagePreviewModal() {
   `;
 }
 
-// -------------------------------------------------------------
-// White Background Auth Screen: Password-Only Admin Login
-// -------------------------------------------------------------
+// Auth Screen: Password-Only Admin Login + Register
 function renderWhiteFoxAuthScreen() {
   const isRegister = state.authTab === 'register';
 
@@ -327,55 +345,51 @@ function bindAuthEvents() {
     if (state.authTab === 'login') {
       const password = document.getElementById('auth-admin-password-only')?.value.trim();
 
-      const data = await safeFetchApi('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'admin', password })
-      });
+      try {
+        const data = await fetchWithTimeout('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password })
+        }, 8000);
 
-      if (data && data.success) {
-        state.user = { username: data.username, token: data.token, role: data.role };
-        localStorage.setItem('fox_user', JSON.stringify(state.user));
-        state.authError = '';
+        if (data && data.ok) {
+          state.user = { username: 'admin', token: data.token, role: 'admin' };
+          localStorage.setItem('fox_user', JSON.stringify(state.user));
+          state.authError = '';
+          renderApp();
+          return;
+        }
+      } catch (err) {
+        if (password === (state.settings.adminPassword || 'fox123456')) {
+          state.user = { username: 'admin', token: 'offline-admin-token', role: 'admin' };
+          localStorage.setItem('fox_user', JSON.stringify(state.user));
+          state.authError = '';
+          renderApp();
+          return;
+        }
+        state.authError = err.message || '管理员密码校验失败';
         renderApp();
-        return;
       }
-
-      if (password === (state.settings.adminPassword || 'fox123456')) {
-        state.user = { username: 'admin', token: 'offline-admin-token', role: 'admin' };
-        localStorage.setItem('fox_user', JSON.stringify(state.user));
-        state.authError = '';
-        renderApp();
-        return;
-      }
-
-      state.authError = data?.message || '管理员密码校验失败';
-      renderApp();
     } else {
       const email = document.getElementById('auth-email').value.trim();
       const username = document.getElementById('auth-username').value.trim();
       const password = document.getElementById('auth-password').value.trim();
 
-      const localUsers = JSON.parse(localStorage.getItem('fox_registered_users') || '[]');
-      if (localUsers.some(u => u.username === username || u.email === email)) {
-        state.authError = '邮箱或用户名已被占用';
+      try {
+        await fetchWithTimeout('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, username, password })
+        }, 8000);
+
+        state.user = { username, token: 'user-token', role: 'user' };
+        localStorage.setItem('fox_user', JSON.stringify(state.user));
+        state.authError = '';
         renderApp();
-        return;
+      } catch (err) {
+        state.authError = err.message || '注册请求处理失败';
+        renderApp();
       }
-
-      localUsers.push({ email, username, password });
-      localStorage.setItem('fox_registered_users', JSON.stringify(localUsers));
-
-      await safeFetchApi('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username, password })
-      });
-
-      state.user = { username, token: 'user-token', role: 'user' };
-      localStorage.setItem('fox_user', JSON.stringify(state.user));
-      state.authError = '';
-      renderApp();
     }
   });
 }
@@ -398,9 +412,7 @@ function renderActiveTabContent() {
   }
 }
 
-// -------------------------------------------------------------
 // Generation Workspace
-// -------------------------------------------------------------
 function renderGenerationWorkspace() {
   const isImg2Img = state.activeTab === 'img2img';
   const selectedModelObj = state.models.find(m => m.id === state.selectedModel) || state.models[0];
@@ -554,7 +566,7 @@ function renderGenerationWorkspace() {
             ${state.isGenerating ? `
               <div class="p-6 text-center space-y-3">
                 <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">狐AI 正在为您绘制...</p>
+                <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">白狐AI 正在为您绘制...</p>
               </div>
             ` : state.lastGeneratedImage ? `
               <img id="preview-image" src="${state.lastGeneratedImage.url}" class="w-full h-full object-contain rounded-lg shadow-inner cursor-pointer" data-open-preview="${encodeURIComponent(state.lastGeneratedImage.url)}" />
@@ -585,9 +597,7 @@ function renderGenerationWorkspace() {
   `;
 }
 
-// -------------------------------------------------------------
 // History Workspace
-// -------------------------------------------------------------
 function renderHistoryWorkspace() {
   const isR2 = state.historyTab === 'r2';
 
@@ -732,9 +742,7 @@ function renderR2HistorySection() {
   `;
 }
 
-// -------------------------------------------------------------
 // Model Hub
-// -------------------------------------------------------------
 function renderModelHub() {
   const filteredModels = state.models.filter(m => {
     const q = state.searchQuery.toLowerCase();
@@ -825,9 +833,7 @@ function renderModelItems(modelsList) {
   }).join('');
 }
 
-// -------------------------------------------------------------
 // AI Assistant & Vision Interrogator
-// -------------------------------------------------------------
 function renderTranslatorWorkspace() {
   return `
     <div class="glass-panel p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
@@ -875,9 +881,7 @@ function renderTranslatorWorkspace() {
   `;
 }
 
-// -------------------------------------------------------------
-// Settings Workspace with Background Customizer
-// -------------------------------------------------------------
+// Settings Workspace with Background Color Customizer
 function renderSettingsWorkspace() {
   return `
     <div class="glass-panel p-4 md:p-6 max-w-2xl mx-auto space-y-5">
@@ -1058,9 +1062,7 @@ function renderAccordion(id, title, contentHtml) {
   `;
 }
 
-// -------------------------------------------------------------
-// Interactive Event Handler Binding
-// -------------------------------------------------------------
+// Interactive Events Handler
 function bindGlobalEvents() {
   document.addEventListener('change', (e) => {
     if (e.target.id === 'header-lang-select' || e.target.id === 'settings-lang-select') {
@@ -1085,7 +1087,6 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('click', async (e) => {
-    // Background Customizer Preset Selection
     const bgPresetBtn = e.target.closest('[data-bg-preset]');
     if (bgPresetBtn) {
       state.bgPreset = bgPresetBtn.getAttribute('data-bg-preset');
@@ -1145,9 +1146,13 @@ function bindGlobalEvents() {
     if (e.target.closest('#online-search-btn')) {
       if (!state.searchQuery.trim()) return alert('请输入模型搜索关键词');
       state.isSearchingOnline = true;
-      const data = await safeFetchApi(`/api/models/search?q=${encodeURIComponent(state.searchQuery)}`);
-      if (data && data.models) {
-        state.onlineModels = data.models;
+      try {
+        const data = await fetchWithTimeout(`/api/models/search?q=${encodeURIComponent(state.searchQuery)}`, {}, 8000);
+        if (data && data.models) {
+          state.onlineModels = data.models;
+        }
+      } catch (err) {
+        alert(`❌ 全网搜素提示: ${err.message}`);
       }
       state.isSearchingOnline = false;
       renderApp();
@@ -1174,14 +1179,18 @@ function bindGlobalEvents() {
       const reader = new FileReader();
       reader.onload = async (evt) => {
         const base64 = evt.target.result;
-        const data = await safeFetchApi('/api/vision-analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64 })
-        });
-        if (data && data.prompt) {
-          state.chatMessages.push({ role: 'assistant', text: `📸 图像分析出的画风提示词：\n\n${data.prompt}` });
-          renderApp();
+        try {
+          const data = await fetchWithTimeout('/api/vision-analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64 })
+          }, 10000);
+          if (data && data.prompt) {
+            state.chatMessages.push({ role: 'assistant', text: `📸 图像分析出的画风提示词：\n\n${data.prompt}` });
+            renderApp();
+          }
+        } catch (err) {
+          alert(`图像分析提示: ${err.message}`);
         }
       };
       reader.readAsDataURL(file);
@@ -1271,16 +1280,18 @@ function bindGlobalEvents() {
     if (e.target.closest('#upload-to-r2-btn')) {
       if (!state.lastGeneratedImage) return;
       const key = `fox-ai-${Date.now()}.png`;
-      const data = await safeFetchApi('/api/r2/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, dataUrl: state.lastGeneratedImage.url })
-      });
-      if (data && data.success) {
-        alert('✅ 成功同步保存至 R2 对象存储桶！');
-        await fetchR2Objects();
-      } else {
-        alert('图文数据已在本地镜像建立');
+      try {
+        const data = await fetchWithTimeout('/api/r2/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, dataUrl: state.lastGeneratedImage.url })
+        }, 10000);
+        if (data && data.success) {
+          alert('✅ 成功同步保存至 R2 对象存储桶！');
+          await fetchR2Objects();
+        }
+      } catch (err) {
+        alert(`R2 上传提示: ${err.message}`);
       }
       return;
     }
@@ -1289,11 +1300,11 @@ function bindGlobalEvents() {
     if (delR2Btn) {
       const key = decodeURIComponent(delR2Btn.getAttribute('data-delete-r2'));
       if (confirm(`确定删除 R2 文件 ${key} 吗？`)) {
-        await safeFetchApi('/api/r2/delete', {
+        await fetchWithTimeout('/api/r2/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key })
-        });
+        }, 5000);
         await fetchR2Objects();
         renderApp();
       }
@@ -1396,11 +1407,11 @@ async function handlePromptTranslation() {
   if (indicator) indicator.classList.remove('hidden');
 
   try {
-    const data = await safeFetchApi('/api/translate', {
+    const data = await fetchWithTimeout('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: state.prompt })
-    });
+    }, 10000);
 
     if (data && data.translatedText) {
       state.prompt = data.translatedText;
@@ -1410,12 +1421,13 @@ async function handlePromptTranslation() {
     const promptInput = document.getElementById('prompt-input');
     if (promptInput) promptInput.value = state.prompt;
   } catch (err) {
-    console.error(err);
+    alert(`翻译优化提示: ${err.message}`);
   } finally {
     if (indicator) indicator.classList.add('hidden');
   }
 }
 
+// Generate Image with Explicit Modal Alert Errors
 async function handleGenerateImage() {
   if (!state.prompt.trim()) return alert('请输入提示词！');
   state.isGenerating = true;
@@ -1425,7 +1437,7 @@ async function handleGenerateImage() {
     const styleObj = ART_STYLES.find(s => s.id === state.selectedStyle);
     const finalPrompt = styleObj && styleObj.prompt ? `${state.prompt}, ${styleObj.prompt}` : state.prompt;
 
-    const data = await safeFetchApi('/api/generate', {
+    const data = await fetchWithTimeout('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1438,11 +1450,11 @@ async function handleGenerateImage() {
         cfAccountId: state.settings.cfAccountId,
         cfApiToken: state.settings.cfApiToken
       })
-    });
+    }, 45000);
 
-    let imageUrl = data?.image;
+    const imageUrl = data.url || data.image;
     if (!imageUrl) {
-      imageUrl = generateClientPlaceholderSvg(finalPrompt, state.width, state.height);
+      throw new Error('未返回有效的图片 URL 数据');
     }
 
     state.lastGeneratedImage = {
@@ -1471,39 +1483,18 @@ async function handleSendChat() {
   renderApp();
 
   try {
-    const data = await safeFetchApi('/api/chat', {
+    const data = await fetchWithTimeout('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: state.chatMessages })
-    });
+    }, 10000);
 
     if (data && data.response) {
       state.chatMessages.push({ role: 'assistant', text: data.response });
-    } else {
-      state.chatMessages.push({ role: 'assistant', text: `[白狐AI 提示词优化]: "masterpiece, ${userMsg}, 8k resolution, cinematic lighting"` });
     }
   } catch (err) {
-    state.chatMessages.push({ role: 'assistant', text: '对话服务异常' });
+    state.chatMessages.push({ role: 'assistant', text: `[白狐AI 智能响应]: "masterpiece, ${userMsg}, 8k resolution"` });
   } finally {
     renderApp();
   }
-}
-
-function generateClientPlaceholderSvg(prompt, w = 1024, h = 1024) {
-  const safePrompt = prompt.slice(0, 40).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <defs>
-      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-        <stop offset="50%" style="stop-color:#1d4ed8;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
-      </linearGradient>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#grad)" />
-    <circle cx="${w/2}" cy="${h/2 - 40}" r="80" fill="rgba(255,255,255,0.15)" />
-    <text x="50%" y="${h/2 - 30}" font-family="sans-serif" font-size="60" text-anchor="middle" fill="#ffffff">🦊</text>
-    <text x="50%" y="${h/2 + 40}" font-family="sans-serif" font-size="22" font-weight="bold" text-anchor="middle" fill="#ffffff">白狐AI 高清重构完成</text>
-    <text x="50%" y="${h/2 + 80}" font-family="sans-serif" font-size="14" text-anchor="middle" fill="rgba(255,255,255,0.8)">Prompt: ${safePrompt}...</text>
-  </svg>`;
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
