@@ -1,7 +1,15 @@
-// Cloudflare Pages Functions Endpoint Router
+// Cloudflare Pages Functions API Router (/api/*)
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  // If request is NOT under /api/, pass directly to static assets (HTML/JS/CSS)
+  if (!url.pathname.startsWith('/api')) {
+    if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+      return env.ASSETS.fetch(request);
+    }
+    return new Response('Not Found', { status: 404 });
+  }
 
   // Handle CORS
   if (request.method === 'OPTIONS') {
@@ -175,7 +183,7 @@ export async function onRequest(context) {
       }), { status: 500, headers: jsonHeaders });
     }
 
-    return new Response(JSON.stringify({ ok: false, error: 'Endpoint Not Found' }), { status: 404, headers: jsonHeaders });
+    return new Response(JSON.stringify({ ok: false, error: 'API Endpoint Not Found' }), { status: 404, headers: jsonHeaders });
 
   } catch (err) {
     return new Response(JSON.stringify({
