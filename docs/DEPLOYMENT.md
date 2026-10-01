@@ -11,7 +11,7 @@
 | 变量名 | 必填 | 默认值 | 说明 |
 | :--- | :---: | :--- | :--- |
 | `ADMIN_USERNAME` | 否 | `admin` | 超级管理员登录用户名 |
-| `ADMIN_PASSWORD` | 是 | `fox123456` | 管理员登录密码（建议更改） |
+| `ADMIN_PASSWORD` | 否 | `fox123456` | 管理员登录密码（建议更改） |
 | `CF_ACCOUNT_ID` | 否 | - | Cloudflare 账户 ID |
 | `CF_API_TOKEN` | 否 | - | Cloudflare Workers AI Token |
 

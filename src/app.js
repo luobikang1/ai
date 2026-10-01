@@ -1,9 +1,12 @@
-import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, COMPUTE_ENGINES, I18N_STRINGS } from './config.js';
+import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
+
+const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
 
 // Global Application State
 const state = {
   user: JSON.parse(localStorage.getItem('fox_user')) || null,
-  activeTab: 'txt2img', // txt2img | img2img | models | translator | history | settings
+  customAvatar: localStorage.getItem('fox_custom_avatar') || DEFAULT_AVATAR,
+  activeTab: 'txt2img',
   themeMode: localStorage.getItem('fox_theme_mode') || 'dark',
   themeAccent: localStorage.getItem('fox_theme_accent') || 'fox-orange',
   fontSize: localStorage.getItem('fox_font_size') || 'medium',
@@ -48,8 +51,7 @@ const state = {
   isGenerating: false,
   lastGeneratedImage: null,
 
-  // Batch History Management
-  historyTab: 'local', // 'local' | 'r2'
+  historyTab: 'local',
   selectedLocalHistoryIdxs: [],
   localHistory: JSON.parse(localStorage.getItem('fox_history') || '[]'),
   r2Storage: {
@@ -59,7 +61,6 @@ const state = {
     remainingSpaceMB: '10240.00'
   },
 
-  // Auth & Form State
   authTab: 'login',
   loginUsername: '',
   loginPassword: '',
@@ -68,7 +69,6 @@ const state = {
   registerPassword: '',
   authError: '',
 
-  // AI Chat & Image Vision Interrogator
   chatInput: '',
   chatMessages: [
     { role: 'assistant', text: '你好！我是狐AI智能助手。你可以输入中文，我将为你进行高精度提示词双向翻译或优化生图词库！' }
@@ -144,8 +144,9 @@ function renderApp() {
       <!-- Top Bar Header -->
       <header class="sticky top-0 z-40 glass-panel !rounded-none !border-x-0 !border-t-0 px-4 py-3 flex items-center justify-between shadow-sm">
         <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-bold shadow-md shadow-orange-500/30 text-lg">
-            🦊
+          <!-- Custom Uploaded or Default Fox Avatar -->
+          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-md border-2 border-orange-500/30 flex-shrink-0 bg-slate-900">
+            <img src="${state.customAvatar}" class="w-full h-full object-cover" />
           </div>
           <div>
             <h1 class="text-lg font-black tracking-tight fox-gradient-text leading-none">${t('appTitle')}</h1>
@@ -154,19 +155,12 @@ function renderApp() {
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Status Indicators -->
-          <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] border border-slate-200 dark:border-slate-700">
-            <span class="flex items-center gap-1" title="CF Workers AI">
-              <span class="w-2 h-2 rounded-full ${state.status.cfApi ? 'bg-emerald-500' : 'bg-red-500'}"></span> CF
-            </span>
-            <span class="flex items-center gap-1" title="D1 Database">
-              <span class="w-2 h-2 rounded-full ${state.status.d1Database ? 'bg-emerald-500' : 'bg-amber-500'}"></span> D1
-            </span>
-            <span class="flex items-center gap-1" title="R2 Object Storage">
-              <span class="w-2 h-2 rounded-full ${state.status.r2Bucket ? 'bg-emerald-500' : 'bg-amber-500'}"></span> R2
-            </span>
-          </div>
+          <!-- Language Selector Badge -->
+          <select id="header-lang-select" class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 font-bold">
+            ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
+          </select>
 
+          <!-- User Badge -->
           <span class="text-xs px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold border border-orange-500/20">
             👤 ${state.user.username}
           </span>
@@ -187,27 +181,27 @@ function renderApp() {
         <div class="max-w-md mx-auto flex items-center justify-around text-[11px] font-bold text-slate-500">
           <button data-tab="txt2img" class="bottom-nav-item ${state.activeTab === 'txt2img' ? 'active' : ''}">
             <span class="text-lg block">🎨</span>
-            <span>文生图</span>
+            <span>${t('txt2img')}</span>
           </button>
           <button data-tab="img2img" class="bottom-nav-item ${state.activeTab === 'img2img' ? 'active' : ''}">
             <span class="text-lg block">🖼️</span>
-            <span>图生图</span>
+            <span>${t('img2img')}</span>
           </button>
           <button data-tab="models" class="bottom-nav-item ${state.activeTab === 'models' ? 'active' : ''}">
             <span class="text-lg block">📦</span>
-            <span>模型库</span>
+            <span>${t('models')}</span>
           </button>
           <button data-tab="translator" class="bottom-nav-item ${state.activeTab === 'translator' ? 'active' : ''}">
             <span class="text-lg block">💬</span>
-            <span>AI助理</span>
+            <span>${t('translator')}</span>
           </button>
           <button data-tab="history" class="bottom-nav-item ${state.activeTab === 'history' ? 'active' : ''}">
             <span class="text-lg block">📜</span>
-            <span>历史记录</span>
+            <span>${t('history')}</span>
           </button>
           <button data-tab="settings" class="bottom-nav-item ${state.activeTab === 'settings' ? 'active' : ''}">
             <span class="text-lg block">⚙️</span>
-            <span>设置</span>
+            <span>${t('settings')}</span>
           </button>
         </div>
       </footer>
@@ -218,28 +212,31 @@ function renderApp() {
 }
 
 // -------------------------------------------------------------
-// White Background Auth Screen with Artistic White Fox Illustration
+// White Background Auth Screen with Provided White Fox Artwork
 // -------------------------------------------------------------
 function renderWhiteFoxAuthScreen() {
   const isRegister = state.authTab === 'register';
 
   return `
     <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 text-slate-900 relative overflow-hidden">
-      <!-- Background White Fox Graphic -->
-      <div class="absolute inset-0 opacity-10 pointer-events-none flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 200 200" fill="none">
-          <path d="M100 20 L130 80 L180 90 L140 130 L150 180 L100 150 L50 180 L60 130 L20 90 L70 80 Z" stroke="#ea580c" stroke-width="4" fill="none" />
-          <circle cx="100" cy="100" r="80" stroke="#f97316" stroke-dasharray="4 4" />
-        </svg>
-      </div>
+      <!-- Background White Fox Provided Artwork Background Overlay -->
+      <div class="absolute inset-0 opacity-15 pointer-events-none bg-cover bg-center" style="background-image: url('${DEFAULT_AVATAR}'); filter: blur(4px);"></div>
 
-      <div class="glass-panel max-w-md w-full p-8 space-y-6 !bg-white/95 !border-slate-200 shadow-xl relative z-10 rounded-3xl">
+      <div class="glass-panel max-w-md w-full p-8 space-y-6 !bg-white/95 !border-slate-200 shadow-2xl relative z-10 rounded-3xl">
+        <div class="flex justify-between items-center">
+          <h1 class="text-xs font-bold text-slate-400">FOX AI WORKBENCH</h1>
+          <!-- Auth Page Language Switcher -->
+          <select id="auth-lang-select" class="text-xs bg-slate-100 text-slate-700 border border-slate-200 rounded-lg px-2 py-1 font-bold">
+            ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
+          </select>
+        </div>
+
         <div class="text-center space-y-2">
-          <!-- White Fox Artistic Avatar -->
-          <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center text-4xl mx-auto shadow-xl shadow-orange-500/20 border-2 border-white">
-            🦊
+          <!-- White Fox Artwork Image Avatar -->
+          <div class="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl shadow-orange-500/30 mx-auto border-2 border-orange-500/40">
+            <img src="${DEFAULT_AVATAR}" class="w-full h-full object-cover" />
           </div>
-          <h2 class="text-2xl font-black fox-gradient-text tracking-tight">白狐AI • 极简创作工作台</h2>
+          <h2 class="text-2xl font-black fox-gradient-text tracking-tight">${t('appTitle')}</h2>
           <p class="text-xs text-slate-500 font-medium">管理员密码部署登录 / 用户全能注册</p>
         </div>
 
@@ -291,6 +288,12 @@ function renderWhiteFoxAuthScreen() {
 }
 
 function bindAuthEvents() {
+  document.getElementById('auth-lang-select')?.addEventListener('change', (e) => {
+    state.lang = e.target.value;
+    localStorage.setItem('fox_lang', state.lang);
+    renderApp();
+  });
+
   document.getElementById('tab-auth-login')?.addEventListener('click', () => {
     state.authTab = 'login';
     state.authError = '';
@@ -391,7 +394,7 @@ function renderActiveTabContent() {
 }
 
 // -------------------------------------------------------------
-// Generation Workspace with Fixed Img2Img Upload Bug
+// Generation Workspace
 // -------------------------------------------------------------
 function renderGenerationWorkspace() {
   const isImg2Img = state.activeTab === 'img2img';
@@ -451,7 +454,7 @@ function renderGenerationWorkspace() {
             </button>
           </div>
 
-          <textarea id="prompt-input" rows="3" class="fox-input font-mono text-xs leading-relaxed" placeholder="输入提示词，例如：国风水墨大图，狐仙少女，发光符文...">${state.prompt}</textarea>
+          <textarea id="prompt-input" rows="3" class="fox-input font-mono text-xs leading-relaxed" placeholder="输入提示词，例如：白狐神兽，国风水墨大图，灵动，高清...">${state.prompt}</textarea>
 
           <div id="translate-status-indicator" class="hidden text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center gap-2 animate-pulse">
             <span class="inline-block w-2 h-2 rounded-full bg-orange-500"></span>
@@ -578,7 +581,7 @@ function renderGenerationWorkspace() {
 }
 
 // -------------------------------------------------------------
-// History Workspace with Batch Management
+// History Workspace
 // -------------------------------------------------------------
 function renderHistoryWorkspace() {
   const isR2 = state.historyTab === 'r2';
@@ -620,7 +623,6 @@ function renderBatchLocalHistorySection() {
 
   return `
     <div class="space-y-3">
-      <!-- Batch Action Toolbar -->
       <div class="glass-panel p-3 flex items-center justify-between gap-2 text-xs">
         <div class="flex items-center gap-2">
           <input type="checkbox" id="batch-select-all" class="w-4 h-4 accent-orange-500 rounded cursor-pointer" ${allSelected ? 'checked' : ''} />
@@ -724,7 +726,7 @@ function renderR2HistorySection() {
 }
 
 // -------------------------------------------------------------
-// Model Hub with Live Online Search
+// Model Hub
 // -------------------------------------------------------------
 function renderModelHub() {
   const filteredModels = state.models.filter(m => {
@@ -830,7 +832,6 @@ function renderTranslatorWorkspace() {
         </div>
       </div>
 
-      <!-- Vision Analysis Box -->
       <div class="glass-panel p-3.5 space-y-3 bg-orange-500/5 border border-orange-500/20">
         <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
           📸 上传图片反推提示词 (Image Interrogator)
@@ -868,7 +869,7 @@ function renderTranslatorWorkspace() {
 }
 
 // -------------------------------------------------------------
-// Settings Workspace with Theme Color Picker
+// Settings Workspace with Custom Avatar Upload & Language Options
 // -------------------------------------------------------------
 function renderSettingsWorkspace() {
   return `
@@ -881,6 +882,26 @@ function renderSettingsWorkspace() {
         <button id="logout-btn" class="fox-btn-secondary text-xs text-red-500">
           🚪 退出登录
         </button>
+      </div>
+
+      <!-- Custom Avatar Upload Section -->
+      <div class="glass-panel p-3.5 space-y-3 border border-orange-500/30 bg-orange-500/5">
+        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🖼️ 主页自定义头像设置：</label>
+        <div class="flex items-center gap-4">
+          <img src="${state.customAvatar}" class="w-14 h-14 rounded-2xl object-cover shadow border border-slate-700" />
+          <div class="space-y-1">
+            <input type="file" id="custom-avatar-file-input" accept="image/*" class="text-xs text-slate-500" />
+            <p class="text-[10px] text-slate-400">选择照片上传并设置为白狐 AI 主页独享头像</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Language Selector -->
+      <div class="glass-panel p-3.5 space-y-2">
+        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">${t('langSelect')}</label>
+        <select id="settings-lang-select" class="fox-input font-bold">
+          ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
+        </select>
       </div>
 
       <!-- Theme Color Palette Accent Selection -->
@@ -1025,6 +1046,28 @@ function renderAccordion(id, title, contentHtml) {
 // Interactive Event Handler Binding
 // -------------------------------------------------------------
 function bindGlobalEvents() {
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'header-lang-select' || e.target.id === 'settings-lang-select') {
+      state.lang = e.target.value;
+      localStorage.setItem('fox_lang', state.lang);
+      renderApp();
+    }
+
+    if (e.target.id === 'custom-avatar-file-input') {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          state.customAvatar = evt.target.result;
+          localStorage.setItem('fox_custom_avatar', state.customAvatar);
+          alert('✅ 主页个人头像修改成功！');
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  });
+
   document.addEventListener('click', async (e) => {
     const accBtn = e.target.closest('[data-accordion-id]');
     if (accBtn) {
@@ -1075,7 +1118,6 @@ function bindGlobalEvents() {
       return;
     }
 
-    // Vision prompt analysis
     if (e.target.closest('#analyze-vision-btn')) {
       const fileInput = document.getElementById('vision-file-input');
       if (!fileInput || !fileInput.files[0]) return alert('请先上传图片');
@@ -1098,7 +1140,6 @@ function bindGlobalEvents() {
       return;
     }
 
-    // Batch local history selection
     const checkItem = e.target.closest('[data-select-idx]');
     if (checkItem) {
       const idx = parseInt(checkItem.getAttribute('data-select-idx'), 10);
@@ -1131,7 +1172,6 @@ function bindGlobalEvents() {
       return;
     }
 
-    // Img2Img Dropzone fix
     if (e.target.closest('#img2img-dropzone')) {
       const fileInput = document.getElementById('img2img-file-input');
       if (fileInput && !e.target.closest('#remove-ref-img-btn')) fileInput.click();
@@ -1259,7 +1299,6 @@ function bindGlobalEvents() {
     }
   });
 
-  // Img2Img File Change Handler
   document.addEventListener('change', (e) => {
     if (e.target.id === 'img2img-file-input') {
       const file = e.target.files[0];

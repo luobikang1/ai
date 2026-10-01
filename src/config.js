@@ -153,9 +153,18 @@ export const THEME_ACCENTS = [
   { id: 'gold', name: '香槟金', hex: '#eab308' }
 ];
 
+export const SUPPORTED_LANGUAGES = [
+  { id: 'zh', name: '简体中文 (Chinese)' },
+  { id: 'en', name: 'English (US)' },
+  { id: 'ja', name: '日本語 (Japanese)' },
+  { id: 'ko', name: '한국어 (Korean)' },
+  { id: 'es', name: 'Español (Spanish)' },
+  { id: 'fr', name: 'Français (French)' }
+];
+
 export const I18N_STRINGS = {
   zh: {
-    appTitle: '狐AI',
+    appTitle: '白狐AI',
     subTitle: '极简轻量级 AI 绘图工作台',
     txt2img: '🎨 文生图',
     img2img: '🖼️ 图生图',
@@ -168,7 +177,8 @@ export const I18N_STRINGS = {
     promptLabel: '💡 正向提示词 (Prompt)',
     negPromptLabel: '🚫 负向提示词 (Negative Prompt)',
     sizeLabel: '📐 图像尺寸规格',
-    styleLabel: '🎨 风格工作台预设'
+    styleLabel: '🎨 风格工作台预设',
+    langSelect: '🌐 语言切换 / Language'
   },
   en: {
     appTitle: 'Fox AI',
@@ -184,6 +194,75 @@ export const I18N_STRINGS = {
     promptLabel: '💡 Prompt',
     negPromptLabel: '🚫 Negative Prompt',
     sizeLabel: '📐 Dimensions',
-    styleLabel: '🎨 Art Styles'
+    styleLabel: '🎨 Art Styles',
+    langSelect: '🌐 Language / 语言切换'
+  },
+  ja: {
+    appTitle: '白狐AI',
+    subTitle: 'ミニマリスト AI 描画ワークベンチ',
+    txt2img: '🎨 テキスト描画',
+    img2img: '🖼️ 画像描画',
+    models: '📦 モデルハブ',
+    translator: '💬 AI アシスタント',
+    history: '📜 履歴',
+    settings: '⚙️ 設定',
+    generate: '✨ 今すぐ描画開始',
+    generating: '生成中、お待ちください...',
+    promptLabel: '💡 プロンプト',
+    negPromptLabel: '🚫 ネガティブプロンプト',
+    sizeLabel: '📐 画像サイズ',
+    styleLabel: '🎨 スタイルプリセット',
+    langSelect: '🌐 言語切り替え / Language'
+  },
+  ko: {
+    appTitle: '백호AI',
+    subTitle: '미니멀 AI 그림 워크벤치',
+    txt2img: '🎨 텍스트 그림',
+    img2img: '🖼️ 이미지 그림',
+    models: '📦 모델 허브',
+    translator: '💬 AI 도우미',
+    history: '📜 기록',
+    settings: '⚙️ 설정',
+    generate: '✨ 지금 생성하기',
+    generating: '생성 중입니다...',
+    promptLabel: '💡 프롬프트',
+    negPromptLabel: '🚫 부작용 프롬프트',
+    sizeLabel: '📐 크기 규격',
+    styleLabel: '🎨 스타일 설정',
+    langSelect: '🌐 언어 선택 / Language'
+  },
+  es: {
+    appTitle: 'Zorro AI',
+    subTitle: 'Plataforma de dibujo AI minimalista',
+    txt2img: '🎨 Texto a Imagen',
+    img2img: '🖼️ Imagen a Imagen',
+    models: '📦 Galería de Modelos',
+    translator: '💬 Asistente IA',
+    history: '📜 Historial',
+    settings: '⚙️ Ajustes',
+    generate: '✨ Generar Imagen',
+    generating: 'Generando, por favor espere...',
+    promptLabel: '💡 Prompt Principal',
+    negPromptLabel: '🚫 Prompt Negativo',
+    sizeLabel: '📐 Dimensiones',
+    styleLabel: '🎨 Estilos de Arte',
+    langSelect: '🌐 Cambiar Idioma / Language'
+  },
+  fr: {
+    appTitle: 'Renard AI',
+    subTitle: 'Plateforme de dessin IA minimaliste',
+    txt2img: '🎨 Texte en Image',
+    img2img: '🖼️ Image en Image',
+    models: '📦 Galerie de Modèles',
+    translator: '💬 Assistant IA',
+    history: '📜 Historique',
+    settings: '⚙️ Paramètres',
+    generate: '✨ Générer l\'image',
+    generating: 'Génération en cours...',
+    promptLabel: '💡 Prompt',
+    negPromptLabel: '🚫 Prompt Négatif',
+    sizeLabel: '📐 Dimensions',
+    styleLabel: '🎨 Styles Artistiques',
+    langSelect: '🌐 Langue / Language'
   }
 };
