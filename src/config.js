@@ -145,12 +145,12 @@ export const NEGATIVE_PROMPT_PRESETS = [
 ];
 
 export const THEME_ACCENTS = [
-  { id: 'fox-orange', name: '狐狸经典橙', hex: '#f97316' },
-  { id: 'emerald', name: '翡翠绿', hex: '#10b981' },
-  { id: 'violet', name: '高雅紫', hex: '#8b5cf6' },
-  { id: 'rose', name: '玫瑰红', hex: '#f43f5e' },
-  { id: 'sky', name: '天空蓝', hex: '#0ea5e9' },
-  { id: 'gold', name: '香槟金', hex: '#eab308' }
+  { id: 'ocean-blue', name: '海洋蔚蓝 (默认)', hex: '#3b82f6', activeBg: 'bg-blue-500', activeText: 'text-blue-500' },
+  { id: 'fox-orange', name: '狐狸经典橙', hex: '#f97316', activeBg: 'bg-orange-500', activeText: 'text-orange-500' },
+  { id: 'emerald', name: '翡翠绿', hex: '#10b981', activeBg: 'bg-emerald-500', activeText: 'text-emerald-500' },
+  { id: 'violet', name: '高雅紫', hex: '#8b5cf6', activeBg: 'bg-violet-500', activeText: 'text-violet-500' },
+  { id: 'rose', name: '玫瑰红', hex: '#f43f5e', activeBg: 'bg-rose-500', activeText: 'text-rose-500' },
+  { id: 'gold', name: '香槟金', hex: '#eab308', activeBg: 'bg-amber-500', activeText: 'text-amber-500' }
 ];
 
 export const SUPPORTED_LANGUAGES = [

@@ -8,7 +8,7 @@ const state = {
   customAvatar: localStorage.getItem('fox_custom_avatar') || DEFAULT_AVATAR,
   activeTab: 'txt2img',
   themeMode: localStorage.getItem('fox_theme_mode') || 'dark',
-  themeAccent: localStorage.getItem('fox_theme_accent') || 'fox-orange',
+  themeAccent: localStorage.getItem('fox_theme_accent') || 'ocean-blue',
   fontSize: localStorage.getItem('fox_font_size') || 'medium',
   lang: localStorage.getItem('fox_lang') || 'zh',
   deviceMode: localStorage.getItem('fox_device_mode') || 'auto',
@@ -51,6 +51,9 @@ const state = {
   isGenerating: false,
   lastGeneratedImage: null,
 
+  // Full-screen Image Preview Modal (Lightbox)
+  previewModalImgUrl: null,
+
   historyTab: 'local',
   selectedLocalHistoryIdxs: [],
   localHistory: JSON.parse(localStorage.getItem('fox_history') || '[]'),
@@ -61,7 +64,9 @@ const state = {
     remainingSpaceMB: '10240.00'
   },
 
-  authTab: 'login',
+  // Auth & Form State
+  authTab: 'login', // 'login' | 'register'
+  adminPasswordOnlyInput: '',
   loginUsername: '',
   loginPassword: '',
   registerEmail: '',
@@ -91,7 +96,7 @@ function applyAppPreferences() {
   } else {
     document.documentElement.classList.remove('dark');
   }
-  document.body.className = `font-size-${state.fontSize} ${state.themeMode === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`;
+  document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${state.themeMode === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`;
 }
 
 async function safeFetchApi(url, options = {}) {
@@ -144,8 +149,7 @@ function renderApp() {
       <!-- Top Bar Header -->
       <header class="sticky top-0 z-40 glass-panel !rounded-none !border-x-0 !border-t-0 px-4 py-3 flex items-center justify-between shadow-sm">
         <div class="flex items-center gap-2.5">
-          <!-- Custom Uploaded or Default Fox Avatar -->
-          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-md border-2 border-orange-500/30 flex-shrink-0 bg-slate-900">
+          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-md border-2 border-blue-500/30 flex-shrink-0 bg-slate-900">
             <img src="${state.customAvatar}" class="w-full h-full object-cover" />
           </div>
           <div>
@@ -155,13 +159,13 @@ function renderApp() {
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Language Selector Badge -->
+          <!-- Language Selector -->
           <select id="header-lang-select" class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 font-bold">
             ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
           </select>
 
           <!-- User Badge -->
-          <span class="text-xs px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold border border-orange-500/20">
+          <span class="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
             👤 ${state.user.username}
           </span>
 
@@ -175,6 +179,9 @@ function renderApp() {
       <main class="flex-1 ${containerWidthClass} w-full mx-auto p-4 md:p-6 space-y-6 transition-all duration-200">
         ${renderActiveTabContent()}
       </main>
+
+      <!-- Image Full Preview Lightbox Modal -->
+      ${state.previewModalImgUrl ? renderImagePreviewModal() : ''}
 
       <!-- Fixed Bottom Main Tab Bar -->
       <footer class="fixed bottom-0 left-0 right-0 z-50 glass-panel !rounded-none !border-x-0 !border-b-0 px-2 py-2.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-lg">
@@ -211,40 +218,53 @@ function renderApp() {
   bindTabEvents();
 }
 
+function renderImagePreviewModal() {
+  return `
+    <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center justify-center space-y-4">
+        <button id="close-preview-modal-btn" class="absolute -top-10 right-0 text-white text-2xl font-bold bg-white/20 rounded-full w-8 h-8 flex items-center justify-center hover:scale-110 transition">✕</button>
+        <img src="${state.previewModalImgUrl}" class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl" />
+        <div class="flex gap-3">
+          <a href="${state.previewModalImgUrl}" download="fox-ai-hd-${Date.now()}.png" class="fox-btn-primary text-xs py-2 px-6">
+            📥 确认下载高清大图
+          </a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // -------------------------------------------------------------
-// White Background Auth Screen with Provided White Fox Artwork
+// White Background Auth Screen: Password-Only Admin Login
 // -------------------------------------------------------------
 function renderWhiteFoxAuthScreen() {
   const isRegister = state.authTab === 'register';
 
   return `
     <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 text-slate-900 relative overflow-hidden">
-      <!-- Background White Fox Provided Artwork Background Overlay -->
       <div class="absolute inset-0 opacity-15 pointer-events-none bg-cover bg-center" style="background-image: url('${DEFAULT_AVATAR}'); filter: blur(4px);"></div>
 
       <div class="glass-panel max-w-md w-full p-8 space-y-6 !bg-white/95 !border-slate-200 shadow-2xl relative z-10 rounded-3xl">
         <div class="flex justify-between items-center">
           <h1 class="text-xs font-bold text-slate-400">FOX AI WORKBENCH</h1>
-          <!-- Auth Page Language Switcher -->
           <select id="auth-lang-select" class="text-xs bg-slate-100 text-slate-700 border border-slate-200 rounded-lg px-2 py-1 font-bold">
             ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
           </select>
         </div>
 
         <div class="text-center space-y-2">
-          <!-- White Fox Artwork Image Avatar -->
-          <div class="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl shadow-orange-500/30 mx-auto border-2 border-orange-500/40">
+          <div class="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/30 mx-auto border-2 border-blue-500/40">
             <img src="${DEFAULT_AVATAR}" class="w-full h-full object-cover" />
           </div>
           <h2 class="text-2xl font-black fox-gradient-text tracking-tight">${t('appTitle')}</h2>
-          <p class="text-xs text-slate-500 font-medium">管理员密码部署登录 / 用户全能注册</p>
+          <p class="text-xs text-slate-500 font-medium">管理员无需账号密码直登 / 邮箱全能注册</p>
         </div>
 
         <div class="flex rounded-xl bg-slate-100 p-1 text-xs font-bold border border-slate-200">
-          <button id="tab-auth-login" class="flex-1 py-2 rounded-lg transition ${!isRegister ? 'bg-orange-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
-            🔐 管理员 / 用户登录
+          <button id="tab-auth-login" class="flex-1 py-2 rounded-lg transition ${!isRegister ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
+            🔑 管理员直登 / 账号登录
           </button>
-          <button id="tab-auth-register" class="flex-1 py-2 rounded-lg transition ${isRegister ? 'bg-orange-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
+          <button id="tab-auth-register" class="flex-1 py-2 rounded-lg transition ${isRegister ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
             📧 账号注册
           </button>
         </div>
@@ -264,22 +284,22 @@ function renderWhiteFoxAuthScreen() {
 
             <div class="space-y-1">
               <label class="text-xs font-bold text-slate-700">注册用户名</label>
-              <input type="text" id="auth-username" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置你的用户名" value="${state.registerUsername}" required />
+              <input type="text" id="auth-username" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置用户名" value="${state.registerUsername}" required />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">密码</label>
+              <input type="password" id="auth-password" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置密码" value="${state.registerPassword}" required />
             </div>
           ` : `
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">用户名 / 管理员账号</label>
-              <input type="text" id="auth-username" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="默认管理员: admin" value="${state.loginUsername}" required />
+              <label class="text-xs font-bold text-slate-700">管理员密码 (仅输入部署变量密码即可直登)</label>
+              <input type="password" id="auth-admin-password-only" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="默认密码: fox123456" value="${state.adminPasswordOnlyInput}" required />
             </div>
           `}
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-slate-700">密码</label>
-            <input type="password" id="auth-password" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="${isRegister ? '设置密码' : '请输入部署变量密码'}" value="${isRegister ? state.registerPassword : state.loginPassword}" required />
-          </div>
-
-          <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-orange-500/20">
-            ${isRegister ? '🚀 提交注册并开始使用' : '🔐 验证登录'}
+          <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
+            ${isRegister ? '🚀 提交注册并开始使用' : '🔑 验证密码进入工作台'}
           </button>
         </form>
       </div>
@@ -309,13 +329,12 @@ function bindAuthEvents() {
   document.getElementById('auth-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (state.authTab === 'login') {
-      const username = document.getElementById('auth-username').value.trim();
-      const password = document.getElementById('auth-password').value.trim();
+      const password = document.getElementById('auth-admin-password-only')?.value.trim();
 
       const data = await safeFetchApi('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: 'admin', password })
       });
 
       if (data && data.success) {
@@ -326,7 +345,7 @@ function bindAuthEvents() {
         return;
       }
 
-      if (username === 'admin' && password === (state.settings.adminPassword || 'fox123456')) {
+      if (password === (state.settings.adminPassword || 'fox123456')) {
         state.user = { username: 'admin', token: 'offline-admin-token', role: 'admin' };
         localStorage.setItem('fox_user', JSON.stringify(state.user));
         state.authError = '';
@@ -334,17 +353,7 @@ function bindAuthEvents() {
         return;
       }
 
-      const localUsers = JSON.parse(localStorage.getItem('fox_registered_users') || '[]');
-      const matched = localUsers.find(u => (u.username === username || u.email === username) && u.password === password);
-      if (matched) {
-        state.user = { username: matched.username, token: 'local-token', role: 'user' };
-        localStorage.setItem('fox_user', JSON.stringify(state.user));
-        state.authError = '';
-        renderApp();
-        return;
-      }
-
-      state.authError = data?.message || '账号或密码验证失败';
+      state.authError = data?.message || '管理员密码校验失败';
       renderApp();
     } else {
       const email = document.getElementById('auth-email').value.trim();
@@ -427,7 +436,7 @@ function renderGenerationWorkspace() {
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
               🖼️ 上传参考图 (Image-to-Image)
             </label>
-            <div id="img2img-dropzone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-orange-500 rounded-xl p-4 text-center cursor-pointer transition relative bg-slate-50/50 dark:bg-slate-900/50">
+            <div id="img2img-dropzone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition relative bg-slate-50/50 dark:bg-slate-900/50">
               ${state.img2imgBase64 ? `
                 <div class="relative inline-block">
                   <img src="${state.img2imgBase64}" class="max-h-48 rounded-lg shadow-md object-contain mx-auto border border-slate-700" />
@@ -449,15 +458,15 @@ function renderGenerationWorkspace() {
             <label class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               ${t('promptLabel')}
             </label>
-            <button id="translate-prompt-btn" class="text-xs font-medium text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1">
+            <button id="translate-prompt-btn" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               🌐 中英双向翻译 / 智能优化
             </button>
           </div>
 
           <textarea id="prompt-input" rows="3" class="fox-input font-mono text-xs leading-relaxed" placeholder="输入提示词，例如：白狐神兽，国风水墨大图，灵动，高清...">${state.prompt}</textarea>
 
-          <div id="translate-status-indicator" class="hidden text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center gap-2 animate-pulse">
-            <span class="inline-block w-2 h-2 rounded-full bg-orange-500"></span>
+          <div id="translate-status-indicator" class="hidden text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-2 animate-pulse">
+            <span class="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
             <span>AI正在智能处理提示词...</span>
           </div>
         </div>
@@ -486,7 +495,7 @@ function renderGenerationWorkspace() {
         <div class="glass-panel p-4 space-y-3">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold text-slate-700 dark:text-slate-300">${t('sizeLabel')}</label>
-            <button id="toggle-custom-size-btn" class="text-[11px] text-orange-600 dark:text-orange-400 font-bold hover:underline">
+            <button id="toggle-custom-size-btn" class="text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
               ${state.isCustomSize ? '📐 标准尺寸预设' : '⚙️ 自定义宽高像素'}
             </button>
           </div>
@@ -520,7 +529,7 @@ function renderGenerationWorkspace() {
           `}
         </div>
 
-        <button id="generate-btn" class="fox-btn-primary w-full py-3.5 text-base shadow-lg shadow-orange-500/25 ${state.isGenerating ? 'opacity-70 cursor-wait' : ''}">
+        <button id="generate-btn" class="fox-btn-primary w-full py-3.5 text-base shadow-lg shadow-blue-500/25 ${state.isGenerating ? 'opacity-70 cursor-wait' : ''}">
           ${state.isGenerating ? `
             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -548,11 +557,11 @@ function renderGenerationWorkspace() {
           <div class="relative min-h-[320px] max-h-[500px] w-full bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
             ${state.isGenerating ? `
               <div class="p-6 text-center space-y-3">
-                <div class="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
                 <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">狐AI 正在为您绘制...</p>
               </div>
             ` : state.lastGeneratedImage ? `
-              <img id="preview-image" src="${state.lastGeneratedImage.url}" class="w-full h-full object-contain rounded-lg shadow-inner" />
+              <img id="preview-image" src="${state.lastGeneratedImage.url}" class="w-full h-full object-contain rounded-lg shadow-inner cursor-pointer" data-open-preview="${encodeURIComponent(state.lastGeneratedImage.url)}" />
             ` : `
               <div class="text-center p-6 space-y-2">
                 <div class="text-4xl opacity-40">🦊</div>
@@ -567,7 +576,7 @@ function renderGenerationWorkspace() {
                 <a href="${state.lastGeneratedImage.url}" download="fox-ai-${Date.now()}.png" class="fox-btn-secondary text-xs text-center justify-center">
                   📥 下载原图
                 </a>
-                <button id="upload-to-r2-btn" class="fox-btn-secondary text-xs text-orange-600 dark:text-orange-400">
+                <button id="upload-to-r2-btn" class="fox-btn-secondary text-xs text-blue-600 dark:text-blue-400">
                   ☁️ 同步保存至 R2
                 </button>
               </div>
@@ -591,15 +600,15 @@ function renderHistoryWorkspace() {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">📜 历史生成管理</h2>
-          <p class="text-xs text-slate-500">支持批量选择、批量删除与云端 R2 同步</p>
+          <p class="text-xs text-slate-500">点击大图全屏查看与下载，支持批量管理</p>
         </div>
 
         <div class="flex rounded-xl bg-slate-200 dark:bg-slate-900 p-1 text-xs font-bold">
-          <button id="history-tab-local" class="px-3 py-1.5 rounded-lg transition ${!isR2 ? 'bg-orange-500 text-white' : 'text-slate-500 hover:text-slate-200'}">
-            💻 本地生成历史 (${state.localHistory.length})
+          <button id="history-tab-local" class="px-3 py-1.5 rounded-lg transition ${!isR2 ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-200'}">
+            💻 本地历史 (${state.localHistory.length})
           </button>
-          <button id="history-tab-r2" class="px-3 py-1.5 rounded-lg transition ${isR2 ? 'bg-orange-500 text-white' : 'text-slate-500 hover:text-slate-200'}">
-            ☁️ R2 对象存储
+          <button id="history-tab-r2" class="px-3 py-1.5 rounded-lg transition ${isR2 ? 'bg-blue-500 text-white' : 'text-slate-500 hover:text-slate-200'}">
+            ☁️ R2 存储桶
           </button>
         </div>
       </div>
@@ -625,7 +634,7 @@ function renderBatchLocalHistorySection() {
     <div class="space-y-3">
       <div class="glass-panel p-3 flex items-center justify-between gap-2 text-xs">
         <div class="flex items-center gap-2">
-          <input type="checkbox" id="batch-select-all" class="w-4 h-4 accent-orange-500 rounded cursor-pointer" ${allSelected ? 'checked' : ''} />
+          <input type="checkbox" id="batch-select-all" class="w-4 h-4 accent-blue-500 rounded cursor-pointer" ${allSelected ? 'checked' : ''} />
           <label for="batch-select-all" class="font-bold cursor-pointer">全选 (${state.selectedLocalHistoryIdxs.length}/${state.localHistory.length})</label>
         </div>
 
@@ -636,7 +645,7 @@ function renderBatchLocalHistorySection() {
             </button>
           ` : ''}
           <button id="clear-local-history-btn" class="fox-btn-secondary text-xs text-red-500">
-            清空全部分限
+            清空全部历史
           </button>
         </div>
       </div>
@@ -645,17 +654,19 @@ function renderBatchLocalHistorySection() {
         ${state.localHistory.map((item, idx) => {
           const isChecked = state.selectedLocalHistoryIdxs.includes(idx);
           return `
-            <div class="glass-panel overflow-hidden group relative flex flex-col justify-between border ${isChecked ? 'border-orange-500 ring-2 ring-orange-500/20' : ''}">
-              <div class="relative aspect-square bg-slate-900 overflow-hidden">
-                <input type="checkbox" data-select-idx="${idx}" class="absolute top-2 left-2 z-20 w-4 h-4 accent-orange-500 rounded cursor-pointer" ${isChecked ? 'checked' : ''} />
+            <div class="glass-panel overflow-hidden group relative flex flex-col justify-between border ${isChecked ? 'border-blue-500 ring-2 ring-blue-500/20' : ''}">
+              <div class="relative aspect-square bg-slate-900 overflow-hidden cursor-pointer" data-open-preview="${encodeURIComponent(item.url)}">
+                <input type="checkbox" data-select-idx="${idx}" class="absolute top-2 left-2 z-20 w-4 h-4 accent-blue-500 rounded cursor-pointer" ${isChecked ? 'checked' : ''} />
                 <img src="${item.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
               </div>
 
               <div class="p-2.5 space-y-1">
                 <p class="text-[11px] text-slate-700 dark:text-slate-300 line-clamp-2 font-mono">${item.prompt}</p>
                 <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                  <span>${new Date(item.timestamp).toLocaleTimeString()}</span>
-                  <button data-reuse-history-prompt="${encodeURIComponent(item.prompt)}" class="text-orange-500 font-bold hover:underline">
+                  <a href="${item.url}" download="fox-ai-${item.timestamp}.png" class="text-blue-500 font-bold hover:underline">
+                    📥 下载原图
+                  </a>
+                  <button data-reuse-history-prompt="${encodeURIComponent(item.prompt)}" class="text-blue-500 font-bold hover:underline">
                     一键绘图 🎨
                   </button>
                 </div>
@@ -673,7 +684,7 @@ function renderR2HistorySection() {
 
   return `
     <div class="space-y-4">
-      <div class="glass-panel p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent">
+      <div class="glass-panel p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent">
         <div>
           <div class="flex items-center gap-2">
             <span class="w-3 h-3 rounded-full ${r2.bound ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}"></span>
@@ -682,7 +693,7 @@ function renderR2HistorySection() {
             </h3>
           </div>
           <p class="text-xs text-slate-500 mt-1">
-            已占用大小: <b class="text-orange-600 dark:text-orange-400">${r2.totalSizeMB || '0.00'} MB</b> |
+            已占用大小: <b class="text-blue-600 dark:text-blue-400">${r2.totalSizeMB || '0.00'} MB</b> |
             总剩余估算空间: <b class="text-emerald-600 dark:text-emerald-400">${r2.remainingSpaceMB || '10240'} MB</b>
           </p>
         </div>
@@ -741,12 +752,12 @@ function renderModelHub() {
     <div class="space-y-5">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">📦 免 Key 热门模型库 & 全网实时搜索</h2>
-          <p class="text-xs text-slate-500">默认支持 12 款热门算法模型，支持在线检索与保存</p>
+          <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">📦 热门模型库 & Civitai / HuggingFace 检索</h2>
+          <p class="text-xs text-slate-500">已接入互联网算法，实时搜素全网热门模型</p>
         </div>
 
         <div class="flex gap-2 max-w-sm w-full">
-          <input type="text" id="model-search-input" class="fox-input" placeholder="输入关键字检索..." value="${state.searchQuery}" />
+          <input type="text" id="model-search-input" class="fox-input" placeholder="输入关键词 (如 anime, realistic)..." value="${state.searchQuery}" />
           <button id="online-search-btn" class="fox-btn-primary text-xs flex-shrink-0">
             🔍 搜全网
           </button>
@@ -755,17 +766,17 @@ function renderModelHub() {
 
       ${state.onlineModels.length > 0 ? `
         <div class="space-y-3">
-          <h3 class="text-xs font-bold text-orange-500 flex items-center gap-1">
-            🌐 全网实时检索到的开源模型列表：
+          <h3 class="text-xs font-bold text-blue-500 flex items-center gap-1">
+            🌐 互联网实时检索出的开源模型：
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             ${state.onlineModels.map(m => `
-              <div class="glass-panel p-3.5 space-y-2 flex flex-col justify-between border border-orange-500/30">
+              <div class="glass-panel p-3.5 space-y-2 flex flex-col justify-between border border-blue-500/30">
                 <div>
                   <h4 class="font-bold text-sm text-slate-100">${m.name}</h4>
                   <p class="text-xs text-slate-400 mt-1">${m.description}</p>
                 </div>
-                <button data-save-online-model="${encodeURIComponent(JSON.stringify(m))}" class="fox-btn-secondary text-xs text-orange-500">
+                <button data-save-online-model="${encodeURIComponent(JSON.stringify(m))}" class="fox-btn-secondary text-xs text-blue-500">
                   ⭐ 保存到本地模型库
                 </button>
               </div>
@@ -819,7 +830,7 @@ function renderModelItems(modelsList) {
 }
 
 // -------------------------------------------------------------
-// AI Assistant with Vision Image Analysis
+// AI Assistant & Vision Interrogator
 // -------------------------------------------------------------
 function renderTranslatorWorkspace() {
   return `
@@ -827,12 +838,12 @@ function renderTranslatorWorkspace() {
       <div class="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
         <span class="text-2xl">🌐</span>
         <div>
-          <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">狐AI 提示词助理 & 图像反推词分析</h2>
-          <p class="text-xs text-slate-500">支持中英双向互译、智能润色，以及上传图片自动分析提示词</p>
+          <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">白狐AI 提示词助理 & 图像出词分析</h2>
+          <p class="text-xs text-slate-500">支持中英双向互译、智能润色，以及上传图片反推提示词</p>
         </div>
       </div>
 
-      <div class="glass-panel p-3.5 space-y-3 bg-orange-500/5 border border-orange-500/20">
+      <div class="glass-panel p-3.5 space-y-3 bg-blue-500/5 border border-blue-500/20">
         <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
           📸 上传图片反推提示词 (Image Interrogator)
         </label>
@@ -849,7 +860,7 @@ function renderTranslatorWorkspace() {
           <div class="flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
             <div class="max-w-[85%] rounded-2xl px-4 py-2.5 text-xs ${
               msg.role === 'user'
-                ? 'bg-orange-500 text-white rounded-br-none shadow'
+                ? 'bg-blue-500 text-white rounded-br-none shadow'
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
             }">
               <p class="whitespace-pre-wrap leading-relaxed">${msg.text}</p>
@@ -869,7 +880,7 @@ function renderTranslatorWorkspace() {
 }
 
 // -------------------------------------------------------------
-// Settings Workspace with Custom Avatar Upload & Language Options
+// Settings Workspace
 // -------------------------------------------------------------
 function renderSettingsWorkspace() {
   return `
@@ -884,8 +895,7 @@ function renderSettingsWorkspace() {
         </button>
       </div>
 
-      <!-- Custom Avatar Upload Section -->
-      <div class="glass-panel p-3.5 space-y-3 border border-orange-500/30 bg-orange-500/5">
+      <div class="glass-panel p-3.5 space-y-3 border border-blue-500/30 bg-blue-500/5">
         <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🖼️ 主页自定义头像设置：</label>
         <div class="flex items-center gap-4">
           <img src="${state.customAvatar}" class="w-14 h-14 rounded-2xl object-cover shadow border border-slate-700" />
@@ -896,7 +906,6 @@ function renderSettingsWorkspace() {
         </div>
       </div>
 
-      <!-- Language Selector -->
       <div class="glass-panel p-3.5 space-y-2">
         <label class="text-xs font-bold text-slate-800 dark:text-slate-200">${t('langSelect')}</label>
         <select id="settings-lang-select" class="fox-input font-bold">
@@ -906,10 +915,10 @@ function renderSettingsWorkspace() {
 
       <!-- Theme Color Palette Accent Selection -->
       <div class="glass-panel p-3.5 space-y-2">
-        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🎨 界面多色彩主题调色：</label>
+        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🎨 界面主题调色 (主色调)：</label>
         <div class="flex items-center gap-2 overflow-x-auto">
           ${THEME_ACCENTS.map(acc => `
-            <button data-theme-accent="${acc.id}" class="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow transition flex items-center gap-1.5" style="background-color: ${acc.hex}">
+            <button data-theme-accent="${acc.id}" class="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow transition flex items-center gap-1.5 ${state.themeAccent === acc.id ? 'ring-2 ring-white scale-105' : ''}" style="background-color: ${acc.hex}">
               <span>${acc.name}</span>
             </button>
           `).join('')}
@@ -930,9 +939,9 @@ function renderSettingsWorkspace() {
           <div class="flex items-center justify-between text-xs">
             <span>视图控制：</span>
             <div class="flex gap-1">
-              <button data-device="auto" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'auto' ? 'bg-orange-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">自动适应</button>
-              <button data-device="desktop" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'desktop' ? 'bg-orange-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">电脑桌面版</button>
-              <button data-device="mobile" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'mobile' ? 'bg-orange-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">手机客户端</button>
+              <button data-device="auto" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'auto' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">自动适应</button>
+              <button data-device="desktop" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'desktop' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">电脑桌面版</button>
+              <button data-device="mobile" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'mobile' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">手机客户端</button>
             </div>
           </div>
         `)}
@@ -1043,7 +1052,7 @@ function renderAccordion(id, title, contentHtml) {
 }
 
 // -------------------------------------------------------------
-// Interactive Event Handler Binding
+// Interactive Events Listener
 // -------------------------------------------------------------
 function bindGlobalEvents() {
   document.addEventListener('change', (e) => {
@@ -1069,6 +1078,30 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('click', async (e) => {
+    // Open preview image in Lightbox Modal
+    const openPrev = e.target.closest('[data-open-preview]');
+    if (openPrev) {
+      state.previewModalImgUrl = decodeURIComponent(openPrev.getAttribute('data-open-preview'));
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#close-preview-modal-btn')) {
+      state.previewModalImgUrl = null;
+      renderApp();
+      return;
+    }
+
+    // Theme Accent Selector
+    const themeAccBtn = e.target.closest('[data-theme-accent]');
+    if (themeAccBtn) {
+      state.themeAccent = themeAccBtn.getAttribute('data-theme-accent');
+      localStorage.setItem('fox_theme_accent', state.themeAccent);
+      applyAppPreferences();
+      renderApp();
+      return;
+    }
+
     const accBtn = e.target.closest('[data-accordion-id]');
     if (accBtn) {
       const id = accBtn.getAttribute('data-accordion-id');
@@ -1432,7 +1465,7 @@ async function handleSendChat() {
     if (data && data.response) {
       state.chatMessages.push({ role: 'assistant', text: data.response });
     } else {
-      state.chatMessages.push({ role: 'assistant', text: `[狐AI 提示词优化]: "masterpiece, ${userMsg}, 8k resolution, cinematic lighting"` });
+      state.chatMessages.push({ role: 'assistant', text: `[白狐AI 提示词优化]: "masterpiece, ${userMsg}, 8k resolution, cinematic lighting"` });
     }
   } catch (err) {
     state.chatMessages.push({ role: 'assistant', text: '对话服务异常' });
@@ -1446,9 +1479,9 @@ function generateClientPlaceholderSvg(prompt, w = 1024, h = 1024) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
     <defs>
       <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
-        <stop offset="50%" style="stop-color:#d97706;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+        <stop offset="50%" style="stop-color:#1d4ed8;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
       </linearGradient>
     </defs>
     <rect width="100%" height="100%" fill="url(#grad)" />
