@@ -1,7 +1,7 @@
 export const PRESET_MODELS = [
   {
     id: '@cf/bytedance/stable-diffusion-xl-lightning',
-    name: 'SDXL Lightning (极速极清)',
+    name: 'SDXL Lightning (极速版) [免费]',
     author: 'ByteDance',
     category: '二次元/动漫',
     isFree: true,
@@ -11,7 +11,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/stabilityai/stable-diffusion-xl-base-1.0',
-    name: 'SDXL Base 1.0 (真实电影感)',
+    name: 'SDXL Base 1.0 (真实电影感) [免费]',
     author: 'Stability AI',
     category: '真实/人像',
     isFree: true,
@@ -21,7 +21,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/lykon/dreamshaper-8-inpainting',
-    name: 'DreamShaper 8 (全能艺术CG)',
+    name: 'DreamShaper 8 (全能插画CG) [免费]',
     author: 'Lykon',
     category: '插画/CG',
     isFree: true,
@@ -31,7 +31,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/runwayml/stable-diffusion-v1-5-inpainting',
-    name: 'SD v1.5 Inpainting (局部重绘与修复)',
+    name: 'SD v1.5 Inpainting (重绘修补) [免费]',
     author: 'RunwayML',
     category: '图生图',
     isFree: true,
@@ -40,18 +40,18 @@ export const PRESET_MODELS = [
     cover: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=400&q=80'
   },
   {
-    id: 'fal-ai/fast-sdxl',
-    name: 'Fal.ai Fast SDXL (高画质外接)',
-    author: 'Fal.ai',
-    category: '全能旗舰',
+    id: 'pollinations/flux-realism',
+    name: 'FLUX Realism 超写实 [免费算力]',
+    author: 'Pollinations AI',
+    category: '真实/人像',
     isFree: true,
     nsfwSupport: true,
-    description: '支持千万级外接高速算力，完美生成高质量海报与艺术壁纸。',
+    description: '免 Key 全球分布式免费 FLUX 开源渲染引擎，极高清细节。',
     cover: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400&q=80'
   },
   {
     id: '@cf/meta/llama-3.1-8b-instruct',
-    name: 'Fox Prompt Enhancer (智能扩展)',
+    name: 'Fox Prompt Enhancer (智能助手) [免费]',
     author: 'Fox AI Core',
     category: 'AI翻译/对话',
     isFree: true,
@@ -61,7 +61,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/dusty-nv/stablediffusion-fantasy',
-    name: 'Fantasy Realm 奇幻史诗',
+    name: 'Fantasy Realm 奇幻史诗 [免费]',
     author: 'Community',
     category: '奇幻/概念',
     isFree: true,
@@ -71,7 +71,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/prompthero/openjourney',
-    name: 'OpenJourney (Midjourney 风格)',
+    name: 'OpenJourney (Midjourney风) [免费]',
     author: 'PromptHero',
     category: 'MJ质感',
     isFree: true,
@@ -81,7 +81,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/cyberrealism-v2',
-    name: 'CyberRealism 赛博写实',
+    name: 'CyberRealism 赛博写实 [免费]',
     author: 'CyberDev',
     category: '真实/人像',
     isFree: true,
@@ -91,7 +91,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/anything-v5',
-    name: 'Anything V5 (极致二次元)',
+    name: 'Anything V5 (极致二次元) [免费]',
     author: 'AnimeDev',
     category: '二次元/动漫',
     isFree: true,
@@ -101,7 +101,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/meinamix-v11',
-    name: 'MeinaMix V11 (韩系唯美)',
+    name: 'MeinaMix V11 (韩系唯美) [免费]',
     author: 'Meina',
     category: '二次元/动漫',
     isFree: true,
@@ -111,7 +111,7 @@ export const PRESET_MODELS = [
   },
   {
     id: '@cf/chinese-poster-ink',
-    name: '国风水墨海报专版',
+    name: '国风水墨海报专版 [免费]',
     author: 'Fox Ink',
     category: '国风海报',
     isFree: true,
@@ -119,6 +119,13 @@ export const PRESET_MODELS = [
     description: '融合传统国画水墨与现代广告海报构图，极具东方美学。',
     cover: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=400&q=80'
   }
+];
+
+export const COMPUTE_ENGINES = [
+  { id: 'cf_workers_ai', name: 'Cloudflare Workers AI [免费算力]', isFree: true },
+  { id: 'pollinations_ai', name: 'Pollinations FLUX AI [免费算力]', isFree: true },
+  { id: 'fal_ai', name: 'Fal.ai 高清云引擎 [需Key]', isFree: false },
+  { id: 'replicate', name: 'Replicate 云算力 [需Key]', isFree: false }
 ];
 
 export const ART_STYLES = [
@@ -134,15 +141,16 @@ export const ART_STYLES = [
 export const NEGATIVE_PROMPT_PRESETS = [
   'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
   'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck',
-  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch (写实专用排负)'
+  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch'
 ];
 
-export const THEME_COLORS = [
-  { id: 'fox-orange', name: '活力狐橙', primary: '#f97316' },
-  { id: 'emerald', name: '翡翠墨绿', primary: '#10b981' },
-  { id: 'violet', name: '高雅紫罗兰', primary: '#8b5cf6' },
-  { id: 'rose', name: '玫瑰绯红', primary: '#f43f5e' },
-  { id: 'sky', name: '蔚蓝天空', primary: '#0ea5e9' }
+export const THEME_ACCENTS = [
+  { id: 'fox-orange', name: '狐狸经典橙', hex: '#f97316' },
+  { id: 'emerald', name: '翡翠绿', hex: '#10b981' },
+  { id: 'violet', name: '高雅紫', hex: '#8b5cf6' },
+  { id: 'rose', name: '玫瑰红', hex: '#f43f5e' },
+  { id: 'sky', name: '天空蓝', hex: '#0ea5e9' },
+  { id: 'gold', name: '香槟金', hex: '#eab308' }
 ];
 
 export const I18N_STRINGS = {
@@ -160,8 +168,7 @@ export const I18N_STRINGS = {
     promptLabel: '💡 正向提示词 (Prompt)',
     negPromptLabel: '🚫 负向提示词 (Negative Prompt)',
     sizeLabel: '📐 图像尺寸规格',
-    styleLabel: '🎨 风格工作台预设',
-    customSize: '自定义图像尺寸 (宽 × 高)'
+    styleLabel: '🎨 风格工作台预设'
   },
   en: {
     appTitle: 'Fox AI',
@@ -169,7 +176,7 @@ export const I18N_STRINGS = {
     txt2img: '🎨 Text-to-Image',
     img2img: '🖼️ Image-to-Image',
     models: '📦 Model Hub',
-    translator: '💬 AI Translate',
+    translator: '💬 AI Assistant',
     history: '📜 History',
     settings: '⚙️ Settings',
     generate: '✨ Generate Image Now',
@@ -177,7 +184,6 @@ export const I18N_STRINGS = {
     promptLabel: '💡 Prompt',
     negPromptLabel: '🚫 Negative Prompt',
     sizeLabel: '📐 Dimensions',
-    styleLabel: '🎨 Art Styles',
-    customSize: 'Custom Size (Width × Height)'
+    styleLabel: '🎨 Art Styles'
   }
 };

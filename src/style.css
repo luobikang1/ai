@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --primary-color: #f97316;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 antialiased font-sans min-h-screen selection:bg-orange-500 selection:text-white;
   }
@@ -38,6 +42,14 @@
 
 .nav-tab-btn.active {
   @apply bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 shadow-sm;
+}
+
+.bottom-nav-item {
+  @apply flex flex-col items-center justify-center px-2 py-1 rounded-xl transition text-slate-500 dark:text-slate-400 hover:text-orange-500 cursor-pointer;
+}
+
+.bottom-nav-item.active {
+  @apply text-orange-500 font-extrabold scale-105;
 }
 
 .style-chip {
