@@ -4,10 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>白狐AI - 极简高颜值 AI 绘图工作台</title>
-  <link rel="icon" href="./assets/fox-avatar.webp" type="image/webp" />
+  <link rel="icon" href="/assets/fox-avatar.webp" type="image/webp" />
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div id="app"></div>
-  <script type="module" src="./src/app.js"></script>
+  <div id="app">
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="text-center space-y-3">
+        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p class="text-sm font-semibold text-slate-400">白狐AI 正在加载应用...</p>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <div style="padding: 20px; text-align: center; color: white;">
+      <h2>请启用 JavaScript 以使用白狐AI 工作台。</h2>
+    </div>
+  </noscript>
+
+  <script type="module" src="/src/app.js"></script>
 </body>
 </html>

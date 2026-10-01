@@ -1,3 +1,1 @@
-# Cloudflare Pages Redirects
-# Pages Functions in /functions handle /api/* requests automatically.
-# For SPA client-side routing, Cloudflare Pages serves index.html by default for non-asset routes.
+/api/*  /api/:splat  200

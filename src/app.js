@@ -1,7 +1,7 @@
 import './style.css';
 import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
 
-const DEFAULT_AVATAR = './assets/fox-avatar.webp';
+const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
 
 // Global Application State
 const state = {
@@ -1499,5 +1499,9 @@ async function handleSendChat() {
   }
 }
 
-// Auto Initialize Application
-initApp();
+// Auto Initialize Application on DOM Ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
