@@ -348,6 +348,13 @@ function renderWhiteFoxAuthScreen() {
               <label class="text-xs font-bold text-slate-700">密码</label>
               <input type="password" id="auth-password" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置密码" value="${state.registerPassword}" required />
             </div>
+
+            ${state.settings.enableEmailVerify ? `
+              <div class="space-y-1">
+                <label class="text-xs font-bold text-slate-700">邮箱验证码</label>
+                <input type="text" id="auth-verify-code" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="输入接收到的 6 位验证码" value="${state.registerVerifyCode}" required />
+              </div>
+            ` : ''}
           ` : `
             <div class="space-y-1">
               <label class="text-xs font-bold text-slate-700">管理员密码 (默认 fox123456)</label>
@@ -417,12 +424,13 @@ function bindAuthEvents() {
       const email = document.getElementById('auth-email').value.trim();
       const username = document.getElementById('auth-username').value.trim();
       const password = document.getElementById('auth-password').value.trim();
+      const verifyCode = document.getElementById('auth-verify-code')?.value.trim();
 
       try {
         await fetchWithTimeout('/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, username, password })
+          body: JSON.stringify({ email, username, password, verifyCode })
         }, 8000);
 
         state.user = { username, email, role: 'user' };
@@ -470,7 +478,7 @@ function renderGenerationWorkspace() {
             <div class="truncate">
               <div class="flex items-center gap-2">
                 <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                  当前算力模型
+                  当前模型
                 </span>
               </div>
               <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">${selectedModelObj.name}</h3>
@@ -689,7 +697,6 @@ function render3ColumnLocalHistorySection() {
         </button>
       </div>
 
-      <!-- One Row Three Columns (grid-cols-3) Mobile Friendly Layout -->
       <div class="grid grid-cols-3 gap-2 sm:gap-3">
         ${state.localHistory.map((item, idx) => `
           <div class="glass-panel overflow-hidden group relative flex flex-col justify-between border border-slate-200 dark:border-slate-800 p-1.5">
@@ -716,7 +723,7 @@ function render3ColumnLocalHistorySection() {
   `;
 }
 
-// R2 Storage Manager with Folders, Video, Audio, Doc Support & Progress Bar
+// R2 Storage Manager
 function renderR2StorageManagerSection() {
   const r2 = state.r2Storage;
 
@@ -773,7 +780,6 @@ function renderR2StorageManagerSection() {
         </div>
       ` : ''}
 
-      <!-- R2 One Row Three Columns (grid-cols-3) Mobile Friendly Layout -->
       <div class="grid grid-cols-3 gap-2 sm:gap-3">
         ${r2.objects.map(obj => {
           let mediaBadge = '📄 文档';
@@ -815,7 +821,7 @@ function renderR2StorageManagerSection() {
   `;
 }
 
-// Model Hub with 3 Columns Layout
+// Model Hub
 function renderModelHub() {
   const filteredModels = state.models.filter(m => {
     const q = state.searchQuery.toLowerCase();
@@ -841,7 +847,6 @@ function renderModelHub() {
         </div>
       </div>
 
-      <!-- One Row Three Columns (grid-cols-3) Layout -->
       <div id="models-grid" class="grid grid-cols-3 gap-2 sm:gap-3">
         ${renderModelItems(filteredModels)}
       </div>
@@ -881,7 +886,7 @@ function renderModelItems(modelsList) {
   }).join('');
 }
 
-// AI Assistant Workspace
+// AI Assistant
 function renderTranslatorWorkspace() {
   return `
     <div class="glass-panel p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
@@ -929,7 +934,7 @@ function renderTranslatorWorkspace() {
   `;
 }
 
-// Settings Workspace
+// Settings Workspace - Strictly Ordered Accordion Sections
 function renderSettingsWorkspace() {
   const isAdmin = state.user && state.user.role === 'admin';
 
@@ -937,49 +942,74 @@ function renderSettingsWorkspace() {
     <div class="glass-panel p-4 md:p-6 max-w-2xl mx-auto space-y-5">
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
-          <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">⚙️ 系统设置与算力控制台</h2>
+          <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">⚙️ 系统设置控制台</h2>
+          <p class="text-xs text-slate-500">支持记忆展开/收起状态，保护管理员凭证权限</p>
         </div>
         <button id="logout-btn" class="fox-btn-secondary text-xs text-red-500">
           🚪 退出登录
         </button>
       </div>
 
-      <div class="glass-panel p-3.5 space-y-3 border border-blue-500/30 bg-blue-500/5">
-        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🖼️ 主页个人头像设置：</label>
-        <div class="flex items-center gap-4">
-          <img src="${state.customAvatar}" class="w-14 h-14 rounded-2xl object-cover shadow border border-slate-700" />
-          <input type="file" id="custom-avatar-file-input" accept="image/*" class="text-xs text-slate-500" />
-        </div>
-      </div>
-
-      <div class="glass-panel p-3.5 space-y-2">
-        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">⚡ 算力引擎选择 (选择后自动保持记忆)：</label>
-        <select id="engine-choice-select" class="fox-input font-bold">
-          ${COMPUTE_ENGINES.map(eng => `
-            <option value="${eng.id}" ${state.settings.engineChoice === eng.id ? 'selected' : ''}>${eng.name}</option>
-          `).join('')}
-        </select>
-      </div>
-
-      <div class="glass-panel p-3.5 space-y-2">
-        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🌌 界面背景色调：</label>
-        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          ${BACKGROUND_PRESETS.map(bg => `
-            <button data-bg-preset="${bg.id}" class="p-2 rounded-xl text-xs font-bold border ${state.bgPreset === bg.id ? 'border-blue-500 ring-2 ring-blue-500/30 font-black' : 'border-slate-700'} ${bg.bgClass} transition hover:scale-105">
-              ${bg.name}
-            </button>
-          `).join('')}
-        </div>
-      </div>
-
       <div class="space-y-3">
-        ${renderAccordion('sec1', '🔑 1. Cloudflare API 凭证与连通状态', `
+        <!-- 1. 一键切换夜间模式 -->
+        ${renderAccordion('sec1', '🌙 1. 一键切换夜间模式', `
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold">切换黑夜/白天视觉主题：</span>
+            <button id="toggle-night-btn" class="fox-btn-secondary text-xs">
+              ${state.themeMode === 'dark' ? '☀️ 切换浅色模式' : '🌙 切换夜间模式'}
+            </button>
+          </div>
+        `)}
+
+        <!-- 2. 一键在电脑版与手机端无缝切换 -->
+        ${renderAccordion('sec2', '📱 2. 一键在电脑版与手机端无缝切换', `
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold">选择展示界面显示尺寸：</span>
+            <div class="flex gap-1">
+              <button data-device="auto" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'auto' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">自动自适应</button>
+              <button data-device="desktop" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'desktop' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">电脑桌面大屏</button>
+              <button data-device="mobile" class="px-2.5 py-1 rounded-lg ${state.deviceMode === 'mobile' ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800'}">手机极简视图</button>
+            </div>
+          </div>
+        `)}
+
+        <!-- 3. 融合算力引擎选择 -->
+        ${renderAccordion('sec3', '⚡ 3. 融合算力引擎选择', `
+          <div class="space-y-2 text-xs">
+            <label class="block font-bold">选择算力通道 (手选后自动保存记忆不复原)：</label>
+            <select id="engine-choice-select" class="fox-input font-bold">
+              ${COMPUTE_ENGINES.map(eng => `
+                <option value="${eng.id}" ${state.settings.engineChoice === eng.id ? 'selected' : ''}>${eng.name}</option>
+              `).join('')}
+            </select>
+          </div>
+        `)}
+
+        <!-- 4. 其他外接算力 KEY 配置，OpenAI 为必须有 -->
+        ${renderAccordion('sec4', '🤖 4. 其他外接算力 KEY 配置 (OpenAI 必须有)', `
           <div class="space-y-3 text-xs">
-            <div class="flex items-center justify-between p-2 rounded bg-slate-100 dark:bg-slate-900">
-              <span class="font-bold">Cloudflare API Token 鉴权状态指示灯：</span>
+            ${isAdmin ? `
+              <div>
+                <label class="block font-bold mb-1">OpenAI API Key (或第三方 OpenAI 兼容 Key):</label>
+                <input type="password" id="setting-openai-key" class="fox-input font-mono" value="${state.settings.openaiApiKey}" placeholder="sk-xxxx..." />
+              </div>
+              <div>
+                <label class="block font-bold mb-1">OpenAI Base URL (自定义 API 接口请求域名):</label>
+                <input type="text" id="setting-openai-base" class="fox-input font-mono" value="${state.settings.openaiBaseUrl}" placeholder="https://api.openai.com/v1" />
+              </div>
+              <button id="save-openai-keys-btn" class="fox-btn-primary w-full text-xs py-2">💾 保存 OpenAI 算力配置</button>
+            ` : `<p class="text-slate-400">非管理员不能修改保存的 Token 与 Key 配置</p>`}
+          </div>
+        `)}
+
+        <!-- 5. Cloudflare 的 API 状态指示灯 -->
+        ${renderAccordion('sec5', '🔴 5. Cloudflare 的 API 状态指示灯', `
+          <div class="space-y-3 text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">
+              <span class="font-bold">Cloudflare API Token 鉴权连通状态：</span>
               <span class="flex items-center gap-1.5 font-bold ${state.status.cfTokenValid ? 'text-emerald-500' : 'text-amber-500'}">
                 <span class="w-2.5 h-2.5 rounded-full ${state.status.cfTokenValid ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
-                ${state.status.cfTokenValid ? '连通正常' : '未验证'}
+                ${state.status.cfTokenValid ? '有效连通 (API 正常)' : '免Key免Token通道'}
               </span>
             </div>
 
@@ -993,34 +1023,88 @@ function renderSettingsWorkspace() {
                 <input type="password" id="setting-cf-token" class="fox-input font-mono" value="${state.settings.cfApiToken}" placeholder="v1.0-xxxx..." />
               </div>
               <div class="flex gap-2">
-                <button id="save-keys-btn" class="fox-btn-primary flex-1 text-xs py-2">💾 保存凭证</button>
-                <button id="verify-cf-token-btn" class="fox-btn-secondary flex-1 text-xs py-2">⚡ 验证连通性</button>
+                <button id="save-keys-btn" class="fox-btn-primary flex-1 text-xs py-2">💾 保存 CF 凭证</button>
+                <button id="verify-cf-token-btn" class="fox-btn-secondary flex-1 text-xs py-2">⚡ 验证 Token 连通状态</button>
               </div>
-            ` : '<p class="text-slate-400">仅管理员可修改</p>'}
+            ` : `<p class="text-slate-400">非管理员不能修改凭证与 ID 区</p>`}
           </div>
         `)}
 
-        ${renderAccordion('sec2', '🔐 2. 密码修改区 & 管理员使用设备 (底部)', `
+        <!-- 6. D1 数据库绑定状态指示灯 -->
+        ${renderAccordion('sec6', '🗄️ 6. D1 数据库绑定状态指示灯', `
+          <div class="flex items-center justify-between text-xs p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">
+            <span class="font-bold">Cloudflare D1 数据库 (DB) 状态：</span>
+            <span class="flex items-center gap-1.5 font-bold ${state.status.d1Database ? 'text-emerald-500' : 'text-amber-500'}">
+              <span class="w-2.5 h-2.5 rounded-full ${state.status.d1Database ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
+              ${state.status.d1Database ? '已绑定 (历史/草稿/设置自动同步)' : '未绑定数据库 (离线离线缓存模式)'}
+            </span>
+          </div>
+        `)}
+
+        <!-- 7. R2 绑定状态指示灯 -->
+        ${renderAccordion('sec7', '☁️ 7. R2 绑定状态指示灯', `
+          <div class="flex items-center justify-between text-xs p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">
+            <span class="font-bold">Cloudflare R2 对象存储 (FOX_BUCKET) 状态：</span>
+            <span class="flex items-center gap-1.5 font-bold ${state.status.r2Bucket ? 'text-emerald-500' : 'text-amber-500'}">
+              <span class="w-2.5 h-2.5 rounded-full ${state.status.r2Bucket ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
+              ${state.status.r2Bucket ? '已连通 R2 全能云盘' : '未绑定 (使用离线演示盘)'}
+            </span>
+          </div>
+        `)}
+
+        <!-- 8. Cloudflare 后台一键绑定 d1 和 R2 说明 -->
+        ${renderAccordion('sec8', '📖 8. Cloudflare 后台一键绑定 d1 和 R2 说明', `
+          <div class="space-y-2 text-xs text-slate-500 leading-relaxed">
+            <p>1. <b>D1 数据库</b>: 控制台创建 <code>fox_ai_db</code>，在 wrangler.toml 填入 <code>[[d1_databases]] binding="DB" database_id="你的UUID"</code> 即可完成数据同步。</p>
+            <p>2. <b>R2 存储桶</b>: 控制台创建 <code>fox-ai-storage</code>，在 wrangler.toml 填入 <code>[[r2_buckets]] binding="FOX_BUCKET" bucket_name="fox-ai-storage"</code> 即可实现文件全能存储。</p>
+          </div>
+        `)}
+
+        <!-- 9. 密码修改区 & 管理员使用设备 -->
+        ${renderAccordion('sec9', '🔐 9. 密码修改区 & 管理员使用设备', `
           <div class="space-y-3 text-xs">
             <div class="space-y-1">
-              <label class="block font-bold">新密码：</label>
+              <label class="block font-bold">修改新登录密码：</label>
               <input type="password" id="new-password-input" class="fox-input" placeholder="输入新密码" />
             </div>
-            <button id="change-pass-btn" class="fox-btn-secondary text-xs w-full">确认修改密码</button>
+            <button id="change-pass-btn" class="fox-btn-secondary text-xs w-full">确认更新密码</button>
           </div>
         `)}
 
-        ${isAdmin ? renderAccordion('sec3', '👥 3. 注册用户管理列表区', `
+        <!-- 10. 管理员可查看注册用户区 -->
+        ${isAdmin ? renderAccordion('sec10', '👥 10. 管理员可查看注册用户区 (D1云端同步)', `
           <div class="space-y-3 text-xs">
-            <p class="font-bold">注册用户列表：</p>
+            <p class="font-bold">注册用户信息表 (接入 D1 数据库后全自动同步)：</p>
             <div class="space-y-1 max-h-40 overflow-y-auto">
-              ${state.registeredUsersList.map(u => `
+              ${state.registeredUsersList.length === 0 ? '<p class="text-slate-400">暂无注册用户</p>' : state.registeredUsersList.map(u => `
                 <div class="flex items-center justify-between p-2 rounded bg-slate-100 dark:bg-slate-900">
                   <span>👤 ${u.username} (${u.email || '无邮箱'})</span>
                   <span class="text-slate-400">${u.createdAt || '默认'}</span>
                 </div>
               `).join('')}
             </div>
+          </div>
+        `) : ''}
+
+        <!-- 11. 仅管理员可见的回复邮箱注册用户验证码功能的预留功能区 -->
+        ${isAdmin ? renderAccordion('sec11', '✉️ 11. 仅管理员可见的回复邮箱注册用户验证码预留区', `
+          <div class="space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="font-bold">开启邮箱验证码注册功能：</span>
+              <input type="checkbox" id="toggle-email-verify-check" class="w-4 h-4 accent-blue-500 cursor-pointer" ${state.settings.enableEmailVerify ? 'checked' : ''} />
+            </div>
+
+            <div>
+              <label class="block font-bold mb-1">系统内部注册验证码 (默认 888888):</label>
+              <input type="text" id="setting-verify-code" class="fox-input font-mono" value="${state.settings.systemVerifyCode}" />
+            </div>
+
+            <div>
+              <label class="block font-bold mb-1">回复发信邮箱地址 (回复发信域名):</label>
+              <input type="text" id="setting-reply-email" class="fox-input font-mono" value="${state.settings.replyEmail}" placeholder="noreply@fox.ai" />
+            </div>
+
+            <button id="save-email-verify-config-btn" class="fox-btn-primary w-full text-xs py-2">💾 保存邮箱验证码预留配置</button>
           </div>
         `) : ''}
       </div>
@@ -1061,6 +1145,35 @@ function bindGlobalEvents() {
   document.addEventListener('click', async (e) => {
     if (e.target.closest('#verify-cf-token-btn')) {
       await verifyCfToken();
+      return;
+    }
+
+    if (e.target.closest('#save-openai-keys-btn')) {
+      state.settings.openaiApiKey = document.getElementById('setting-openai-key').value.trim();
+      state.settings.openaiBaseUrl = document.getElementById('setting-openai-base').value.trim();
+      localStorage.setItem('fox_openai_api_key', state.settings.openaiApiKey);
+      localStorage.setItem('fox_openai_base_url', state.settings.openaiBaseUrl);
+      alert('✅ OpenAI 算力配置保存成功！');
+      return;
+    }
+
+    if (e.target.closest('#save-email-verify-config-btn')) {
+      state.settings.enableEmailVerify = document.getElementById('toggle-email-verify-check').checked;
+      state.settings.systemVerifyCode = document.getElementById('setting-verify-code').value.trim();
+      state.settings.replyEmail = document.getElementById('setting-reply-email').value.trim();
+
+      localStorage.setItem('fox_enable_email_verify', state.settings.enableEmailVerify);
+      localStorage.setItem('fox_system_verify_code', state.settings.systemVerifyCode);
+      localStorage.setItem('fox_reply_email', state.settings.replyEmail);
+      alert('✅ 邮箱验证码预留配置已保存！');
+      return;
+    }
+
+    const deviceBtn = e.target.closest('[data-device]');
+    if (deviceBtn) {
+      state.deviceMode = deviceBtn.getAttribute('data-device');
+      localStorage.setItem('fox_device_mode', state.deviceMode);
+      renderApp();
       return;
     }
 
