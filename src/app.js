@@ -1,6 +1,7 @@
+import './style.css';
 import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
 
-const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
+const DEFAULT_AVATAR = './assets/fox-avatar.webp';
 
 // Global Application State
 const state = {
@@ -100,7 +101,6 @@ function applyAppPreferences() {
   document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${bgObj.bgClass}`;
 }
 
-// Explicit API Fetch with Timeout & Transparent Error Handling
 async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -250,7 +250,7 @@ function renderImagePreviewModal() {
   `;
 }
 
-// Auth Screen: Password-Only Admin Login + Register
+// Auth Screen
 function renderWhiteFoxAuthScreen() {
   const isRegister = state.authTab === 'register';
 
@@ -881,7 +881,7 @@ function renderTranslatorWorkspace() {
   `;
 }
 
-// Settings Workspace with Background Color Customizer
+// Settings Workspace
 function renderSettingsWorkspace() {
   return `
     <div class="glass-panel p-4 md:p-6 max-w-2xl mx-auto space-y-5">
@@ -1498,3 +1498,6 @@ async function handleSendChat() {
     renderApp();
   }
 }
+
+// Auto Initialize Application
+initApp();
