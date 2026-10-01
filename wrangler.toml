@@ -1,6 +1,6 @@
 name = "fox-ai"
-main = "src/functions/api.js"
 compatibility_date = "2024-11-01"
+pages_build_output_dir = "./dist"
 
 [ai]
 binding = "AI"
@@ -13,6 +13,3 @@ database_id = "your-d1-database-id-here"
 [[r2_buckets]]
 binding = "FOX_BUCKET"
 bucket_name = "fox-ai-storage"
-
-[site]
-bucket = "./dist"

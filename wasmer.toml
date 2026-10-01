@@ -1,0 +1,7 @@
+[package]
+name = "fox-ai"
+version = "1.0.0"
+description = "Fox AI Web Application"
+
+[site]
+bucket = "dist"
