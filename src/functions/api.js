@@ -58,7 +58,6 @@ export default {
   }
 };
 
-// Safe Base64 Encoding
 function uint8ArrayToBase64(uint8Array) {
   let binary = '';
   const len = uint8Array.byteLength;
@@ -69,7 +68,6 @@ function uint8ArrayToBase64(uint8Array) {
   return btoa(binary);
 }
 
-// Parse Base64 data URL
 function parseBase64DataUrl(dataUrl) {
   try {
     const parts = dataUrl.split(',');
@@ -122,13 +120,6 @@ async function handleLogin(request, env) {
       }
     }
 
-    if (username === 'fox' && password === 'fox123') {
-      const token = btoa(JSON.stringify({ username: 'fox', role: 'user', exp: Date.now() + 86400000 }));
-      return new Response(JSON.stringify({ success: true, token, username: 'fox', role: 'user' }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     return new Response(JSON.stringify({ success: false, message: '账号或密码错误' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
@@ -143,7 +134,7 @@ async function handleRegister(request, env) {
   try {
     const { email, username, password } = await request.json();
     if (!email || !username || !password) {
-      return new Response(JSON.stringify({ success: false, message: '请填写完整的注册信息' }), { status: 400 });
+      return new Response(JSON.stringify({ success: false, message: '请填写完整的邮箱、用户名与密码' }), { status: 400 });
     }
 
     if (env.DB) {
@@ -288,10 +279,9 @@ async function handleChat(request, env) {
   }
 }
 
-// R2 Storage API Implementations
 async function handleR2List(request, env) {
   if (!env.FOX_BUCKET) {
-    return new Response(JSON.stringify({ bound: false, objects: [], totalSize: 0, remainingSpaceMB: 10240 }), {
+    return new Response(JSON.stringify({ bound: false, objects: [], totalSizeMB: '0.00', remainingSpaceMB: '10240.00' }), {
       headers: { 'Content-Type': 'application/json' }
     });
   }
