@@ -57,9 +57,11 @@ const state = {
   cfgScale: 7.5,
   seed: '',
   sampler: 'Euler a',
+  batchCount: 1,
   showAdvancedSettings: false,
   img2imgBase64: null,
   isGenerating: false,
+  lastGeneratedImages: [],
   lastGeneratedImage: null,
 
   previewModalUrl: null,
@@ -538,6 +540,14 @@ function renderGenerationWorkspace() {
             </button>
           </div>
 
+          <div class="flex justify-between items-center pb-2">
+            <span class="text-xs font-bold text-slate-700 dark:text-slate-300">生成张数模式：</span>
+            <div class="flex gap-1">
+              <button id="batch-1-btn" class="px-3 py-1 rounded-lg text-xs font-bold ${state.batchCount === 1 ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}">1 张单发</button>
+              <button id="batch-4-btn" class="px-3 py-1 rounded-lg text-xs font-bold ${state.batchCount === 4 ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}">⚡ 4 张连发</button>
+            </div>
+          </div>
+
           <div class="grid grid-cols-3 gap-2">
             <button data-size="1024x1024" class="size-chip ${state.width === 1024 && state.height === 1024 ? 'active' : ''}">
               <span class="block text-sm font-bold">1:1</span>
@@ -590,14 +600,21 @@ function renderGenerationWorkspace() {
             </h2>
           </div>
 
-          <div class="relative min-h-[320px] max-h-[500px] w-full bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
+          <div class="relative min-h-[320px] w-full bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center p-2">
             ${state.isGenerating ? `
               <div class="p-6 text-center space-y-3">
                 <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">白狐AI 正在为您绘制...</p>
+                <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">白狐AI 正在绘制 ${state.batchCount} 张图片...</p>
               </div>
-            ` : state.lastGeneratedImage ? `
-              <img id="preview-image" src="${state.lastGeneratedImage.url}" class="w-full h-full object-contain rounded-lg shadow-inner cursor-pointer" data-open-preview="${encodeURIComponent(state.lastGeneratedImage.url)}" />
+            ` : state.lastGeneratedImages.length > 0 ? `
+              <div class="grid ${state.lastGeneratedImages.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 w-full">
+                ${state.lastGeneratedImages.map((img, idx) => `
+                  <div class="aspect-square bg-slate-950 rounded-lg overflow-hidden relative cursor-pointer group" data-open-preview="${encodeURIComponent(img.url)}">
+                    <img src="${img.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+                    <span class="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded bg-black/70 text-white font-bold">图 #${idx + 1}</span>
+                  </div>
+                `).join('')}
+              </div>
             ` : `
               <div class="text-center p-6 space-y-2">
                 <div class="text-4xl opacity-40">🦊</div>
@@ -1187,6 +1204,18 @@ function bindGlobalEvents() {
       return;
     }
 
+    if (e.target.closest('#batch-1-btn')) {
+      state.batchCount = 1;
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#batch-4-btn')) {
+      state.batchCount = 4;
+      renderApp();
+      return;
+    }
+
     if (e.target.closest('#generate-btn')) {
       await handleGenerateImage();
       return;
@@ -1294,26 +1323,27 @@ async function handleGenerateImage() {
         width: state.width,
         height: state.height,
         steps: state.steps,
+        batchCount: state.batchCount,
         image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
         cfAccountId: state.settings.cfAccountId,
         cfApiToken: state.settings.cfApiToken
       })
-    }, 45000);
+    }, 60000);
 
-    const imageUrl = data.url || data.image;
-    if (!imageUrl) {
-      throw new Error('未返回有效的图片 URL 数据');
-    }
-
-    state.lastGeneratedImage = {
-      url: imageUrl,
+    const imgList = data.images && data.images.length > 0 ? data.images : [data.url || data.image];
+    state.lastGeneratedImages = imgList.map((url, idx) => ({
+      url: url,
       prompt: state.prompt,
       model: state.selectedModel,
       width: state.width,
       height: state.height,
-      timestamp: Date.now()
-    };
-    state.localHistory.unshift(state.lastGeneratedImage);
+      timestamp: Date.now() + idx
+    }));
+
+    state.lastGeneratedImage = state.lastGeneratedImages[0];
+    for (const item of state.lastGeneratedImages) {
+      state.localHistory.unshift(item);
+    }
     localStorage.setItem('fox_history', JSON.stringify(state.localHistory));
 
   } catch (err) {

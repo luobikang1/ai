@@ -269,7 +269,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, users: usersList }), { headers: jsonHeaders });
     }
 
-    // 6. High Efficiency Drawing Engine
+    // 6. High Efficiency Single/Batch Drawing Engine (Support 1 or 4 Images)
     if (url.pathname === '/api/generate') {
       if (request.method !== 'POST') {
         return new Response(JSON.stringify({ ok: false, error: 'Method Not Allowed' }), { status: 405, headers: jsonHeaders });
@@ -288,55 +288,75 @@ export async function onRequest(context) {
       const width = parseInt(payload.width, 10) || 1024;
       const height = parseInt(payload.height, 10) || 1024;
       const steps = parseInt(payload.steps, 10) || 4;
-      const seed = payload.seed ? parseInt(payload.seed, 10) : Math.floor(Math.random() * 1000000);
+      const count = parseInt(payload.batchCount, 10) || 1;
 
       const qualityBoost = 'masterpiece, highly detailed, 8k resolution, raw photo, sharp focus, cinematic light';
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
-      // A. Cloudflare Workers AI Binding
-      if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
-        try {
-          const aiInputs = { prompt: finalPrompt, num_steps: steps };
-          if (model.includes('stable-diffusion')) {
-            aiInputs.width = width;
-            aiInputs.height = height;
-          }
-          const binaryRes = await env.AI.run(model, aiInputs);
-          const dataUrl = `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
-          return new Response(JSON.stringify({ ok: true, id: `gen-${Date.now()}`, url: dataUrl }), { headers: jsonHeaders });
-        } catch(e) {}
-      }
+      const generatedImages = [];
 
-      // B. Direct CF Token Route
-      const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
-      const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
+      for (let i = 0; i < count; i++) {
+        const currentSeed = Math.floor(Math.random() * 1000000);
+        let currentUrl = null;
 
-      if (accountId && apiToken) {
-        try {
-          const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-          const cfRes = await fetch(cfUrl, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: finalPrompt, width, height, steps })
-          });
-          if (cfRes.ok) {
-            const buf = await cfRes.arrayBuffer();
-            const dataUrl = `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`;
-            return new Response(JSON.stringify({ ok: true, id: `gen-${Date.now()}`, url: dataUrl }), { headers: jsonHeaders });
-          }
-        } catch(e) {}
-      }
-
-      // C. Universal Free Pollinations AI Engine Fallback
-      try {
-        const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-        const pollRes = await fetch(pollUrl);
-        if (pollRes.ok) {
-          const pollBuf = await pollRes.arrayBuffer();
-          const dataUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
-          return new Response(JSON.stringify({ ok: true, id: `gen-${Date.now()}`, url: dataUrl }), { headers: jsonHeaders });
+        // A. Cloudflare Workers AI Binding
+        if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
+          try {
+            const aiInputs = { prompt: finalPrompt, num_steps: steps };
+            if (model.includes('stable-diffusion')) {
+              aiInputs.width = width;
+              aiInputs.height = height;
+            }
+            const binaryRes = await env.AI.run(model, aiInputs);
+            currentUrl = `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
+          } catch(e) {}
         }
-      } catch(e) {}
+
+        // B. Direct CF Token Route
+        const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
+        const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
+
+        if (!currentUrl && accountId && apiToken) {
+          try {
+            const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+            const cfRes = await fetch(cfUrl, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: finalPrompt, width, height, steps })
+            });
+            if (cfRes.ok) {
+              const buf = await cfRes.arrayBuffer();
+              currentUrl = `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`;
+            }
+          } catch(e) {}
+        }
+
+        // C. Universal Free Pollinations AI Engine Fallback
+        if (!currentUrl) {
+          try {
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${currentSeed}&nologo=true`;
+            const pollRes = await fetch(pollUrl);
+            if (pollRes.ok) {
+              const pollBuf = await pollRes.arrayBuffer();
+              currentUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
+            }
+          } catch(e) {}
+        }
+
+        if (currentUrl) {
+          generatedImages.push(currentUrl);
+        }
+      }
+
+      if (generatedImages.length > 0) {
+        return new Response(JSON.stringify({
+          ok: true,
+          id: `gen-${Date.now()}`,
+          url: generatedImages[0],
+          images: generatedImages,
+          count: generatedImages.length
+        }), { headers: jsonHeaders });
+      }
 
       return new Response(JSON.stringify({ ok: false, error: '算力通道通信失败，请重试' }), { status: 500, headers: jsonHeaders });
     }
