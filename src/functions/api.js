@@ -2,21 +2,33 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization'
         }
       });
     }
 
-    // Serve API routes
+    // Health & Status Indicator Endpoints
+    if (url.pathname === '/api/status') {
+      return handleStatus(request, env);
+    }
+
+    // Auth & User System
     if (url.pathname === '/api/login') {
       return handleLogin(request, env);
     }
+    if (url.pathname === '/api/register') {
+      return handleRegister(request, env);
+    }
+    if (url.pathname === '/api/change-password') {
+      return handleChangePassword(request, env);
+    }
+
+    // Generation & AI
     if (url.pathname === '/api/generate') {
       return handleGenerate(request, env);
     }
@@ -27,7 +39,17 @@ export default {
       return handleChat(request, env);
     }
 
-    // Static Assets fallback (for Cloudflare Pages / Workers)
+    // R2 Storage Management Endpoints
+    if (url.pathname === '/api/r2/list') {
+      return handleR2List(request, env);
+    }
+    if (url.pathname === '/api/r2/upload') {
+      return handleR2Upload(request, env);
+    }
+    if (url.pathname === '/api/r2/delete') {
+      return handleR2Delete(request, env);
+    }
+
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
@@ -36,7 +58,7 @@ export default {
   }
 };
 
-// Safe Base64 encoding for large binary arrays without stack overflow
+// Safe Base64 Encoding
 function uint8ArrayToBase64(uint8Array) {
   let binary = '';
   const len = uint8Array.byteLength;
@@ -47,7 +69,7 @@ function uint8ArrayToBase64(uint8Array) {
   return btoa(binary);
 }
 
-// Parse Base64 data URL safely without relying on fetch(dataUrl)
+// Parse Base64 data URL
 function parseBase64DataUrl(dataUrl) {
   try {
     const parts = dataUrl.split(',');
@@ -58,51 +80,109 @@ function parseBase64DataUrl(dataUrl) {
     for (let i = 0; i < len; i++) {
       bytes[i] = binaryStr.charCodeAt(i);
     }
-    return Array.from(bytes);
+    return bytes;
   } catch (err) {
-    return [];
+    return new Uint8Array(0);
   }
 }
 
-async function handleLogin(request, env) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405 });
-  }
+async function handleStatus(request, env) {
+  const status = {
+    cfApi: !!(env.AI || env.CF_API_TOKEN),
+    d1Database: !!env.DB,
+    r2Bucket: !!env.FOX_BUCKET
+  };
+  return new Response(JSON.stringify(status), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
 
+async function handleLogin(request, env) {
+  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   try {
     const { username, password } = await request.json();
     const adminUser = env.ADMIN_USERNAME || 'admin';
     const adminPass = env.ADMIN_PASSWORD || 'fox123456';
 
     if (username === adminUser && password === adminPass) {
-      const token = btoa(JSON.stringify({ username, exp: Date.now() + 86400000 }));
-      return new Response(JSON.stringify({ success: true, token, username }), {
+      const token = btoa(JSON.stringify({ username, role: 'admin', exp: Date.now() + 86400000 }));
+      return new Response(JSON.stringify({ success: true, token, username, role: 'admin' }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Demo/guest login support
+    if (env.DB) {
+      const stmt = env.DB.prepare('SELECT * FROM users WHERE email = ? OR username = ?');
+      const user = await stmt.bind(username, username).first();
+      if (user && user.password === password) {
+        const token = btoa(JSON.stringify({ username: user.username, exp: Date.now() + 86400000 }));
+        return new Response(JSON.stringify({ success: true, token, username: user.username, role: 'user' }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     if (username === 'fox' && password === 'fox123') {
-      const token = btoa(JSON.stringify({ username: 'fox', exp: Date.now() + 86400000 }));
-      return new Response(JSON.stringify({ success: true, token, username: 'fox' }), {
+      const token = btoa(JSON.stringify({ username: 'fox', role: 'user', exp: Date.now() + 86400000 }));
+      return new Response(JSON.stringify({ success: true, token, username: 'fox', role: 'user' }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response(JSON.stringify({ success: false, message: '用户名或密码不正确' }), {
+    return new Response(JSON.stringify({ success: false, message: '账号或密码错误' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ message: '登录请求解析异常' }), { status: 400 });
+    return new Response(JSON.stringify({ message: '登录处理异常' }), { status: 400 });
+  }
+}
+
+async function handleRegister(request, env) {
+  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+  try {
+    const { email, username, password } = await request.json();
+    if (!email || !username || !password) {
+      return new Response(JSON.stringify({ success: false, message: '请填写完整的注册信息' }), { status: 400 });
+    }
+
+    if (env.DB) {
+      try {
+        await env.DB.exec(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, username TEXT UNIQUE, password TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+        const stmt = env.DB.prepare('INSERT INTO users (email, username, password) VALUES (?, ?, ?)');
+        await stmt.bind(email, username, password).run();
+      } catch (e) {
+        return new Response(JSON.stringify({ success: false, message: '邮箱或用户名已被占用' }), { status: 400 });
+      }
+    }
+
+    const token = btoa(JSON.stringify({ username, email, exp: Date.now() + 86400000 }));
+    return new Response(JSON.stringify({ success: true, token, username }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ message: '注册失败' }), { status: 500 });
+  }
+}
+
+async function handleChangePassword(request, env) {
+  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+  try {
+    const { username, newPassword } = await request.json();
+    if (env.DB) {
+      const stmt = env.DB.prepare('UPDATE users SET password = ? WHERE username = ?');
+      await stmt.bind(newPassword, username).run();
+    }
+    return new Response(JSON.stringify({ success: true, message: '密码更新成功' }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ message: '密码修改失败' }), { status: 500 });
   }
 }
 
 async function handleGenerate(request, env) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405 });
-  }
-
+  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   try {
     const body = await request.json();
     const { model, prompt, negativePrompt, width, height, image, cfAccountId, cfApiToken } = body;
@@ -110,7 +190,6 @@ async function handleGenerate(request, env) {
     const accountId = cfAccountId || env.CF_ACCOUNT_ID;
     const apiToken = cfApiToken || env.CF_API_TOKEN;
 
-    // Use Workers AI binding if available
     if (env.AI && model.startsWith('@cf/')) {
       const inputs = {
         prompt: prompt,
@@ -119,10 +198,7 @@ async function handleGenerate(request, env) {
         height: height || 1024,
         num_steps: 20
       };
-
-      if (image) {
-        inputs.image = parseBase64DataUrl(image);
-      }
+      if (image) inputs.image = Array.from(parseBase64DataUrl(image));
 
       const binaryRes = await env.AI.run(model, inputs);
       const u8Array = new Uint8Array(binaryRes);
@@ -132,7 +208,6 @@ async function handleGenerate(request, env) {
       });
     }
 
-    // Fallback to Cloudflare Direct API call if Token/ID is supplied or set in env
     if (accountId && apiToken && model.startsWith('@cf/')) {
       const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
       const payload = {
@@ -141,10 +216,7 @@ async function handleGenerate(request, env) {
         width: width || 1024,
         height: height || 1024
       };
-
-      if (image) {
-        payload.image = parseBase64DataUrl(image);
-      }
+      if (image) payload.image = Array.from(parseBase64DataUrl(image));
 
       const cfRes = await fetch(cfUrl, {
         method: 'POST',
@@ -155,10 +227,7 @@ async function handleGenerate(request, env) {
         body: JSON.stringify(payload)
       });
 
-      if (!cfRes.ok) {
-        throw new Error(`Cloudflare AI API Error: ${cfRes.statusText}`);
-      }
-
+      if (!cfRes.ok) throw new Error(`Cloudflare AI API Error: ${cfRes.statusText}`);
       const imageBlob = await cfRes.arrayBuffer();
       const u8Array = new Uint8Array(imageBlob);
       const base64Str = uint8ArrayToBase64(u8Array);
@@ -167,12 +236,10 @@ async function handleGenerate(request, env) {
       });
     }
 
-    // Fallback Mock Placeholder Image Generator (Guarantees zero-failure free mode)
     const svgDataUri = generatePlaceholderSvg(prompt, width, height);
     return new Response(JSON.stringify({ image: svgDataUri }), {
       headers: { 'Content-Type': 'application/json' }
     });
-
   } catch (err) {
     return new Response(JSON.stringify({ message: err.message || '生成图片失败' }), {
       status: 500,
@@ -183,11 +250,11 @@ async function handleGenerate(request, env) {
 
 async function handleTranslate(request, env) {
   try {
-    const { text, cfAccountId, cfApiToken } = await request.json();
+    const { text } = await request.json();
     if (env.AI) {
       const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
         messages: [
-          { role: 'system', content: 'You are an AI prompt translator and enhancer. Translate Chinese prompts to detailed English image generation prompts. If text is already in English, refine it. Output ONLY the translated/refined English text without explanation.' },
+          { role: 'system', content: 'You are an AI prompt translator. Translate Chinese to detailed English prompt.' },
           { role: 'user', content: text }
         ]
       });
@@ -195,11 +262,7 @@ async function handleTranslate(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    // Fallback Translation Mock
-    return new Response(JSON.stringify({
-      translatedText: `${text}, highly detailed, 8k resolution, masterpiece, cinematic lighting, vivid colors`
-    }), {
+    return new Response(JSON.stringify({ translatedText: `${text}, highly detailed, 8k resolution, masterpiece, cinematic lighting` }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
@@ -216,15 +279,73 @@ async function handleChat(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
     const lastMsg = messages[messages.length - 1]?.text || '';
-    return new Response(JSON.stringify({
-      response: `[狐AI 助手]: 建议生图提示词："masterpiece, ${lastMsg}, 8k resolution, cinematic lighting, sharp focus"`
-    }), {
+    return new Response(JSON.stringify({ response: `[狐AI 提示词建议]: "masterpiece, ${lastMsg}, 8k resolution, cinematic lighting"` }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ response: '助手服务暂不可用' }), { status: 500 });
+    return new Response(JSON.stringify({ response: '对话服务响应异常' }), { status: 500 });
+  }
+}
+
+// R2 Storage API Implementations
+async function handleR2List(request, env) {
+  if (!env.FOX_BUCKET) {
+    return new Response(JSON.stringify({ bound: false, objects: [], totalSize: 0, remainingSpaceMB: 10240 }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  const listed = await env.FOX_BUCKET.list();
+  let totalSize = 0;
+  const objects = listed.objects.map(obj => {
+    totalSize += obj.size;
+    return {
+      key: obj.key,
+      size: obj.size,
+      formattedSize: (obj.size / 1024 / 1024).toFixed(2) + ' MB',
+      uploaded: obj.uploaded
+    };
+  });
+  const remainingSpaceMB = Math.max(0, (10 * 1024) - (totalSize / 1024 / 1024)).toFixed(2);
+
+  return new Response(JSON.stringify({
+    bound: true,
+    objects,
+    totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+    remainingSpaceMB
+  }), { headers: { 'Content-Type': 'application/json' } });
+}
+
+async function handleR2Upload(request, env) {
+  if (!env.FOX_BUCKET) {
+    return new Response(JSON.stringify({ message: '未绑定 R2 存储桶' }), { status: 400 });
+  }
+  try {
+    const { key, dataUrl } = await request.json();
+    const bytes = parseBase64DataUrl(dataUrl);
+    await env.FOX_BUCKET.put(key, bytes, {
+      httpMetadata: { contentType: 'image/png' }
+    });
+    return new Response(JSON.stringify({ success: true, key }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ message: '上传到 R2 失败' }), { status: 500 });
+  }
+}
+
+async function handleR2Delete(request, env) {
+  if (!env.FOX_BUCKET) {
+    return new Response(JSON.stringify({ message: '未绑定 R2 存储桶' }), { status: 400 });
+  }
+  try {
+    const { key } = await request.json();
+    await env.FOX_BUCKET.delete(key);
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ message: '删除失败' }), { status: 500 });
   }
 }
 

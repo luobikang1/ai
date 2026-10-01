@@ -1,69 +1,50 @@
 # 🦊 狐AI (Fox AI) - 极简高颜值 AI 绘图 & 创作工作台
 
-> **狐AI** 是一款专为移动端与桌面端优化的极简高颜值 AI 绘图应用。原生支持 **Cloudflare Pages / Workers** 边缘计算部署、**Vercel**、**Docker 容器化** 及 **Wasmer** 部署。内置免 Key 开源多模型算力、提示词中英双向翻译与爆款增强助理。
+> **狐AI** 是一款专为移动端与桌面端优化的极简高颜值 AI 绘图工作台。原生支持 **Cloudflare Pages / Workers (Git 自动拉取与部署)**、**Zeabur**、**Render**、**Railway**、**Netlify**、**Vercel**、**Docker 容器化** 及 **Wasmer** 多平台部署。内置 **Cloudflare D1 数据库** 与 **R2 对象存储** 原生绑定支持。
 
 ![狐AI 项目界面预览](./public/assets/fox-ai-preview.svg)
 
 ---
 
-## ✨ 核心功能与亮点
+## ✨ 核心功能与特色
 
-- 🎨 **文生图 (Text-to-Image)**：支持正向/负向提示词、中英双向翻译、比例调节 (1:1 / 3:4 / 4:3) 与艺术风格预设。
-- 🖼️ **图生图 (Image-to-Image)**：支持上传本地参考图，结合提示词快速衍生二次创作。
-- 📦 **免 Key 热门模型库**：预设 12 款热门开源模型（包含 SDXL Lightning、SDXL Base、DreamShaper 8、Anything V5 等），支持模型搜索与收藏。
-- 💬 **AI 提示词助理**：内置智能大模型，支持中文输入一键扩展高品质英文 Prompt。
-- 📜 **本地历史记录**：自动持久化存储生成历史，支持一键同款绘图与高清原图下载。
-- 🔐 **安全与设置**：内置登录认证系统、成人内容展示开关控制与 Cloudflare API 凭证管理。
-
----
-
-## 🖼️ 软件界面概览
-
-| 界面模块 | 功能说明 |
-| :--- | :--- |
-| **🎨 绘图工作台** | 双栏响应式布局，左侧控制参数，右侧实时显示绘图预览 |
-| **📦 热门模型库** | 图文卡片展示各分类模型，支持关键字实时搜素与一键使用 |
-| **💬 AI 翻译/对话** | 支持中文提示词润色增强，双向互译不掉线 |
-| **📜 历史记录** | 浏览器本地存储，离线可看，支持下载与一键重绘 |
+- 🎨 **文生图与自定义尺寸**：支持正向/负向提示词、中英双向翻译，以及自选或自定义（宽 × 高）像素尺寸。
+- 🖼️ **图生图 (Image-to-Image)**：支持上传参考图，结合提示词快速衍生二次创作。
+- 📜 **云端 R2 与本地双区历史记录**：
+  - 支持本地浏览缓存；
+  - 接入 Cloudflare R2 对象存储，支持 2MB 以上大图同步存储、文件管理界面、文件删除与剩余总空间动态显示。
+- ⚙️ **11 项折叠分区设置面板**：
+  - 夜间模式一键切换；
+  - 电脑桌面版与手机端无缝切换；
+  - 融合算力引擎选择与外接 KEY 配置；
+  - 密码修改区；
+  - **CF API / D1 数据库 / R2 存储桶状态指示灯**；
+  - Cloudflare 后台一键绑定 D1 与 R2 步骤说明。
+- 🔐 **账户与登录系统**：支持管理员密码登录与邮箱新用户注册。
 
 ---
 
-## 🚀 多平台一键部署指南
+## 🌐 多平台部署支持
 
-完整部署步骤见 [📜 多平台详细部署文档 (docs/DEPLOYMENT.md)](./docs/DEPLOYMENT.md)。
-
-### 1. Cloudflare Pages / Workers 部署 (推荐)
-
-```bash
-# 克隆仓库
-git clone https://github.com/your-repo/fox-ai.git
-cd fox-ai
-
-# 安装依赖并构建
-npm install
-npm run build
-
-# 发布至 Cloudflare
-npx wrangler deploy
-```
-
-### 2. Docker 部署
-
-```bash
-docker build -t fox-ai:latest .
-docker run -d -p 8080:80 --name fox-ai-app fox-ai:latest
-```
-
----
-
-## 📋 关键环境变量
-
-| 变量名 | 默认值 | 说明 |
+| 部署平台 | 支持方式 | 部署文档 |
 | :--- | :--- | :--- |
-| `ADMIN_USERNAME` | `admin` | 管理员账号 |
-| `ADMIN_PASSWORD` | `fox123456` | 管理员登录密码 |
-| `CF_ACCOUNT_ID` | - | Cloudflare Account ID (选填) |
-| `CF_API_TOKEN` | - | Cloudflare Workers AI Token (选填) |
+| **Cloudflare Pages / Workers** | Git 拉取部署 / Wrangler CLI | [查看指南](./docs/DEPLOYMENT.md#云端方案一cloudflare-git-拉取与自动部署-推荐) |
+| **Zeabur** | 一键 Git 导入部署 | [查看指南](./docs/DEPLOYMENT.md#方案三zeabur-部署) |
+| **Render** | Node / Docker 自动部署 | [查看指南](./docs/DEPLOYMENT.md#方案四render-部署) |
+| **Railway** | GitHub Repo 智能识别 | [查看指南](./docs/DEPLOYMENT.md#方案五railway-部署) |
+| **Netlify** | 静态构建拉取部署 | [查看指南](./docs/DEPLOYMENT.md#方案六netlify-部署) |
+| **Docker** | 单容器 / Docker-Compose | [查看指南](./docs/DEPLOYMENT.md#方案七docker--docker-compose-部署) |
+
+---
+
+## 🗄️ Cloudflare D1 & R2 绑定速查
+
+详见 [📜 多平台部署与绑定指南全集 (docs/DEPLOYMENT.md)](./docs/DEPLOYMENT.md)。
+
+- **D1 数据库绑定**:
+  `[[d1_databases]] binding = "DB" database_name = "fox_ai_db"`
+- **R2 对象存储绑定**:
+  `[[r2_buckets]] binding = "FOX_BUCKET" bucket_name = "fox-ai-storage"`
 
 ---
 

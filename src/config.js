@@ -136,3 +136,48 @@ export const NEGATIVE_PROMPT_PRESETS = [
   'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck',
   'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch (写实专用排负)'
 ];
+
+export const THEME_COLORS = [
+  { id: 'fox-orange', name: '活力狐橙', primary: '#f97316' },
+  { id: 'emerald', name: '翡翠墨绿', primary: '#10b981' },
+  { id: 'violet', name: '高雅紫罗兰', primary: '#8b5cf6' },
+  { id: 'rose', name: '玫瑰绯红', primary: '#f43f5e' },
+  { id: 'sky', name: '蔚蓝天空', primary: '#0ea5e9' }
+];
+
+export const I18N_STRINGS = {
+  zh: {
+    appTitle: '狐AI',
+    subTitle: '极简轻量级 AI 绘图工作台',
+    txt2img: '🎨 文生图',
+    img2img: '🖼️ 图生图',
+    models: '📦 模型库',
+    translator: '💬 AI翻译/对话',
+    history: '📜 历史记录',
+    settings: '⚙️ 设置',
+    generate: '✨ 立即开始智能绘制',
+    generating: '绘制生成中，请稍候...',
+    promptLabel: '💡 正向提示词 (Prompt)',
+    negPromptLabel: '🚫 负向提示词 (Negative Prompt)',
+    sizeLabel: '📐 图像尺寸规格',
+    styleLabel: '🎨 风格工作台预设',
+    customSize: '自定义图像尺寸 (宽 × 高)'
+  },
+  en: {
+    appTitle: 'Fox AI',
+    subTitle: 'Minimalist AI Drawing Workbench',
+    txt2img: '🎨 Text-to-Image',
+    img2img: '🖼️ Image-to-Image',
+    models: '📦 Model Hub',
+    translator: '💬 AI Translate',
+    history: '📜 History',
+    settings: '⚙️ Settings',
+    generate: '✨ Generate Image Now',
+    generating: 'Generating, please wait...',
+    promptLabel: '💡 Prompt',
+    negPromptLabel: '🚫 Negative Prompt',
+    sizeLabel: '📐 Dimensions',
+    styleLabel: '🎨 Art Styles',
+    customSize: 'Custom Size (Width × Height)'
+  }
+};

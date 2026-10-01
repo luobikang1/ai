@@ -1,141 +1,105 @@
-# 🚀 狐AI (Fox AI) 多平台部署指南全集
+# 🚀 狐AI (Fox AI) 多平台部署与绑定指南全集
 
-本文档提供“狐AI”在 **Cloudflare Pages / Workers**、**Vercel**、**Docker / Docker-Compose** 以及 **Wasmer Edge** 等各大平台的全流程部署步骤、关键环境变量说明与故障排查方案。
+本文档提供“狐AI”在 **Cloudflare Pages / Workers**、**Zeabur**、**Render**、**Railway**、**Netlify**、**Vercel**、**Docker** 以及 **Wasmer** 等平台的全流程部署步骤，并包含 **Cloudflare D1 数据库** 与 **R2 对象存储** 的详细绑定配置。
 
 ---
 
 ## 📋 环境变量总览 (Environment Variables)
 
-在任何部署方式中，可选择性配置以下环境变量：
+在所有平台部署时，可选配置以下环境变量：
 
 | 变量名 | 必填 | 默认值 | 说明 |
 | :--- | :---: | :--- | :--- |
-| `ADMIN_USERNAME` | 否 | `admin` | 后台与超级管理员登录用户名 |
-| `ADMIN_PASSWORD` | 否 | `fox123456` | 管理员登录密码（生产环境建议更改） |
-| `CF_ACCOUNT_ID` | 否 | - | Cloudflare 账户 ID（配置后前端无需手动输入） |
+| `ADMIN_USERNAME` | 否 | `admin` | 超级管理员登录用户名 |
+| `ADMIN_PASSWORD` | 否 | `fox123456` | 管理员登录密码（建议更改） |
+| `CF_ACCOUNT_ID` | 否 | - | Cloudflare 账户 ID |
 | `CF_API_TOKEN` | 否 | - | Cloudflare Workers AI Token |
 
 ---
 
-## 🌐 方案一：Cloudflare Pages / Workers 部署 (推荐，零成本)
+## ☁️ 方案一：Cloudflare Git 拉取与自动部署 (推荐)
 
-Cloudflare Pages / Workers 为首选部署平台，原生支持 `Workers AI` 绑定的免费 GPU 算力。
+借助 Cloudflare Pages 的 Git 集成，每次提交代码均可实现自动拉取构建与发布：
 
-### 方式 1：使用 Wrangler CLI 部署 (最快)
+1. **创建 GitHub / GitLab 仓库**：
+   将本项目代码推送到你个人的 Git 仓库。
+2. **连接 Cloudflare Pages**：
+   - 登录 Cloudflare 控制台，进入 **Workers & Pages** -> **Create application** -> **Pages** -> **Connect to Git**。
+   - 选择你的 `fox-ai` 仓库。
+3. **设置构建配置**：
+   - **Framework preset**: `Vite`
+   - **Build command**: `npm run build`
+   - **Build output directory**: `dist`
+4. **点击 Save and Deploy** 即可获得 Cloudflare Pages 全球 CDN 部署链接。
 
-1. **安装 Wrangler 并登录 Cloudflare 账号**：
-   ```bash
-   npm install -g wrangler
-   wrangler login
+---
+
+## ☁️ 方案二：Cloudflare 后台一键绑定 D1 和 R2 说明
+
+### 1. D1 数据库绑定
+1. 在 Cloudflare 控制台进入 **Storage & Databases** -> **D1 Database** -> **Create Database**（数据库名称填 `fox_ai_db`）。
+2. 在 `wrangler.toml` 中取消注释并写入数据库 ID：
+   ```toml
+   [[d1_databases]]
+   binding = "DB"
+   database_name = "fox_ai_db"
+   database_id = "你的-D1-Database-ID"
    ```
 
-2. **检出项目并安装依赖**：
-   ```bash
-   git clone https://github.com/your-username/fox-ai.git
-   cd fox-ai
-   npm install
-   ```
-
-3. **构建前端静态资源**：
-   ```bash
-   npm run build
-   ```
-
-4. **一键发布至 Cloudflare Workers**：
-   ```bash
-   npx wrangler deploy
+### 2. R2 对象存储绑定 (2MB 以上图片同步与空间管理)
+> **注意**：单张大于 2MB 的高清图片需要接入 R2 存储桶方可进行云端同步与持久化空间显示。
+1. 在 Cloudflare 控制台进入 **R2** -> **Create Bucket**（存储桶名称填 `fox-ai-storage`）。
+2. 在 `wrangler.toml` 中配置绑定量：
+   ```toml
+   [[r2_buckets]]
+   binding = "FOX_BUCKET"
+   bucket_name = "fox-ai-storage"
    ```
 
 ---
 
-## 🔺 方案二：Vercel 一键部署
+## 💜 方案三：Zeabur 部署
 
-1. **导入 Git 仓库**：
-   在 Vercel Dashboard 点击 **New Project**，选择已 Fork 或上传的 `fox-ai` 仓库。
-
-2. **配置构建指令**：
-   - **Framework Preset**: `Vite`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-
-3. **设置环境变量 (Optional)**：
-   在 Environment Variables 区域添加：
-   - `ADMIN_USERNAME`: `admin`
-   - `ADMIN_PASSWORD`: `your_secure_password`
-
-4. **部署**：
-   点击 **Deploy** 按钮，等待 1 分钟即可生成类似 `https://fox-ai.vercel.app` 的独享域名。
+1. 登录 [Zeabur 控制台](https://zeabur.com)，创建新 Service。
+2. 选择 **Git Repository** 导入 `fox-ai`。
+3. Zeabur 会自动识别 Node.js / Dockerfile 环境。
+4. 在 **Variables** 界面填入环境变量 `ADMIN_USERNAME` 与 `ADMIN_PASSWORD`。
+5. 生成域名后即可直接访问使用。
 
 ---
 
-## 🐳 方案三：Docker & Docker Compose 容器化部署
+## 🟢 方案四：Render 部署
 
-适合拥有 VPS、自建服务器或 Docker 托管环境的用户。
+1. 在 [Render Dashboard](https://dashboard.render.com/) 选择 **New Web Service**。
+2. 关联 Git 仓库后：
+   - **Environment**: `Node`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm run preview` 或配合 Docker 部署。
+3. 点击 **Create Web Service**。
 
-### 1. 使用单容器 Docker 部署
+---
+
+## 🚆 方案五：Railway 部署
+
+1. 在 [Railway App](https://railway.app/) 点击 **New Project** -> **Deploy from GitHub repo**。
+2. 选择 `fox-ai` 项目。
+3. Railway 会自动读取 `Dockerfile` 并完成编译部署。
+
+---
+
+## 🩵 方案六：Netlify 部署
+
+1. 在 Netlify 选择 **Add new site** -> **Import an existing project**。
+2. 构建选项：
+   - **Build command**: `npm run build`
+   - **Publish directory**: `dist`
+3. 发布后可在设置添加环境变量。
+
+---
+
+## 🐳 方案七：Docker & Docker-Compose 部署
 
 ```bash
-# 1. 构建镜像
-docker build -t fox-ai:1.0 .
-
-# 2. 启动容器
-docker run -d \
-  --name fox-ai-app \
-  -p 8080:80 \
-  --restart always \
-  fox-ai:1.0
+docker build -t fox-ai:latest .
+docker run -d -p 8080:80 --name fox-ai-app fox-ai:latest
 ```
-访问 `http://your-server-ip:8080` 即可使用。
-
-### 2. 使用 Docker-Compose 部署
-
-创建 `docker-compose.yml` 文件：
-
-```yaml
-version: '3.8'
-
-services:
-  fox-ai:
-    build: .
-    container_name: fox-ai-service
-    ports:
-      - "8080:80"
-    environment:
-      - ADMIN_USERNAME=admin
-      - ADMIN_PASSWORD=fox_secure_pass_2025
-    restart: always
-```
-
-运行启动指令：
-```bash
-docker-compose up -d
-```
-
----
-
-## ⚡ 方案四：Wasmer / Edge WebAssembly 部署
-
-Wasmer 支持以 WebAssembly & WASI 形式部署至全局边缘节点。
-
-1. **安装 Wasmer CLI**：
-   ```bash
-   curl https://get.wasmer.io -sSfL | sh
-   ```
-
-2. **使用 Wasmer 发布项目**：
-   ```bash
-   wasmer deploy
-   ```
-
----
-
-## 🛠️ 部署常见问题排查 (Troubleshooting)
-
-### Q1: 提示“Cloudflare AI API Error”或没有出图？
-- **原因**：前端未配置 Cloudflare API Token / Account ID，且后端未配置环境变量或 Workers AI Binding 未绑定成功。
-- **解决**：进入项目设置页面（⚙️ 设置），填入你的 Cloudflare Account ID 和 API Token。狐AI 亦内置了 100% 可用的模拟展示兜底逻辑，确保不会静默失败或卡死。
-
-### Q2: Docker 构建镜像时在 `npm install` 卡住？
-- **原因**：网络延迟。
-- **解决**：在 Dockerfile 中切换至 NPM 淘宝镜像源：
-  `RUN npm config set registry https://registry.npmmirror.com`
