@@ -12,12 +12,10 @@ export default {
       });
     }
 
-    // Status Check
     if (url.pathname === '/api/status') {
       return handleStatus(request, env);
     }
 
-    // Auth (Password-Only Admin Login + User DB)
     if (url.pathname === '/api/login') {
       return handleLogin(request, env);
     }
@@ -28,7 +26,6 @@ export default {
       return handleChangePassword(request, env);
     }
 
-    // High Quality Image Generation Pipeline
     if (url.pathname === '/api/generate') {
       return handleGenerate(request, env);
     }
@@ -42,12 +39,10 @@ export default {
       return handleVisionAnalyze(request, env);
     }
 
-    // Internet Model Search (Civitai + HuggingFace)
     if (url.pathname === '/api/models/search') {
       return handleOnlineModelSearch(request, env);
     }
 
-    // R2 Object Storage
     if (url.pathname === '/api/r2/list') {
       return handleR2List(request, env);
     }
@@ -100,14 +95,12 @@ async function handleStatus(request, env) {
   }), { headers: { 'Content-Type': 'application/json' } });
 }
 
-// Password-Only Admin Login
 async function handleLogin(request, env) {
   if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   try {
     const { username, password } = await request.json();
     const envAdminPass = env.ADMIN_PASSWORD || 'fox123456';
 
-    // Allow Admin Login with JUST password or username=admin
     if (password === envAdminPass || (username === 'admin' && password === envAdminPass)) {
       const token = btoa(JSON.stringify({ username: 'admin', role: 'admin', exp: Date.now() + 86400000 }));
       return new Response(JSON.stringify({ success: true, token, username: 'admin', role: 'admin' }), {
@@ -126,16 +119,16 @@ async function handleLogin(request, env) {
           });
         }
       } catch (e) {
-        console.log('DB Login check fallback');
+        console.log('DB Login fallback');
       }
     }
 
-    return new Response(JSON.stringify({ success: false, message: '管理员密码或账号校验失败' }), {
+    return new Response(JSON.stringify({ success: false, message: '管理员密码或账号错误' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ message: '登录验证异常' }), { status: 400 });
+    return new Response(JSON.stringify({ message: '登录处理失败' }), { status: 400 });
   }
 }
 
@@ -153,7 +146,7 @@ async function handleRegister(request, env) {
         const stmt = env.DB.prepare('INSERT INTO users (email, username, password) VALUES (?, ?, ?)');
         await stmt.bind(email, username, password).run();
       } catch (e) {
-        console.log('User insertion handled');
+        console.log('User handles registration');
       }
     }
 
@@ -162,7 +155,7 @@ async function handleRegister(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ message: '注册失败' }), { status: 500 });
+    return new Response(JSON.stringify({ message: '注册过程失败' }), { status: 500 });
   }
 }
 
@@ -174,7 +167,7 @@ async function handleChangePassword(request, env) {
       const stmt = env.DB.prepare('UPDATE users SET password = ? WHERE username = ?');
       await stmt.bind(newPassword, username).run();
     }
-    return new Response(JSON.stringify({ success: true, message: '密码已更新' }), {
+    return new Response(JSON.stringify({ success: true, message: '密码已修改' }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
@@ -182,7 +175,7 @@ async function handleChangePassword(request, env) {
   }
 }
 
-// Zero-Failure High Quality Image Pipeline
+// Robust Image Generation Pipeline
 async function handleGenerate(request, env) {
   if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   try {
@@ -192,14 +185,13 @@ async function handleGenerate(request, env) {
     const w = width || 1024;
     const h = height || 1024;
 
-    // Quality Prompt Enhancer Booster
     const qualityBoost = 'masterpiece, highly detailed, 8k resolution, raw photo, sharp focus, cinematic lighting';
     const enhancedPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
     const accountId = cfAccountId || env.CF_ACCOUNT_ID;
     const apiToken = cfApiToken || env.CF_API_TOKEN;
 
-    // Engine 1: Cloudflare Workers AI
+    // Engine 1: Cloudflare Workers AI Binding
     if (env.AI && model.startsWith('@cf/')) {
       try {
         const inputs = {
@@ -207,7 +199,7 @@ async function handleGenerate(request, env) {
           negative_prompt: negativePrompt || 'blurry, low quality, bad anatomy',
           width: w,
           height: h,
-          num_steps: 25
+          num_steps: 20
         };
         if (image) inputs.image = Array.from(parseBase64DataUrl(image));
 
@@ -222,7 +214,7 @@ async function handleGenerate(request, env) {
       }
     }
 
-    // Engine 2: Direct CF API
+    // Engine 2: Direct CF Token API
     if (accountId && apiToken && model.startsWith('@cf/')) {
       try {
         const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
@@ -256,7 +248,7 @@ async function handleGenerate(request, env) {
       }
     }
 
-    // Engine 3: Free HD Pollinations.ai Engine (Guaranteed High Resolution)
+    // Engine 3: Free HD Pollinations.ai Pipeline
     try {
       const seed = Math.floor(Math.random() * 10000000);
       const encoded = encodeURIComponent(enhancedPrompt);
@@ -274,7 +266,7 @@ async function handleGenerate(request, env) {
       console.warn('Pollinations fallback:', e);
     }
 
-    // Engine 4: Guaranteed Vector Canvas Output
+    // Engine 4: High Resolution Canvas SVG Fallback
     const svgDataUri = generatePlaceholderSvg(enhancedPrompt, w, h);
     return new Response(JSON.stringify({ image: svgDataUri, engine: 'Fox Canvas HD' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -288,14 +280,12 @@ async function handleGenerate(request, env) {
   }
 }
 
-// Civitai & HuggingFace Online Internet Model Search
 async function handleOnlineModelSearch(request, env) {
   const url = new URL(request.url);
   const query = url.searchParams.get('q') || 'diffusion';
 
   let foundModels = [];
 
-  // 1. Try Civitai API
   try {
     const civRes = await fetch(`https://civitai.com/api/v1/models?query=${encodeURIComponent(query)}&limit=10`);
     if (civRes.ok) {
@@ -318,7 +308,6 @@ async function handleOnlineModelSearch(request, env) {
     console.log('Civitai search offline');
   }
 
-  // 2. Try HuggingFace API if Civitai returned few results
   if (foundModels.length < 5) {
     try {
       const hfRes = await fetch(`https://huggingface.co/api/models?search=${encodeURIComponent(query)}&filter=diffusers&limit=10`);
@@ -346,7 +335,6 @@ async function handleOnlineModelSearch(request, env) {
   });
 }
 
-// Vision Analysis API
 async function handleVisionAnalyze(request, env) {
   try {
     const { image } = await request.json();

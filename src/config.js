@@ -121,6 +121,15 @@ export const PRESET_MODELS = [
   }
 ];
 
+export const BACKGROUND_PRESETS = [
+  { id: 'oled-black', name: 'OLED 纯黑', bgClass: 'bg-black text-slate-100' },
+  { id: 'slate-dark', name: '暗夜深灰 (默认)', bgClass: 'bg-slate-950 text-slate-100' },
+  { id: 'pure-white', name: '珍珠纯白', bgClass: 'bg-white text-slate-900' },
+  { id: 'warm-cream', name: '暖调奶油', bgClass: 'bg-amber-50/90 text-amber-950' },
+  { id: 'cyber-night', name: '赛博深紫', bgClass: 'bg-slate-900 text-purple-100' },
+  { id: 'mint-fresh', name: '薄荷清新', bgClass: 'bg-emerald-50/80 text-emerald-950' }
+];
+
 export const COMPUTE_ENGINES = [
   { id: 'cf_workers_ai', name: 'Cloudflare Workers AI [免费算力]', isFree: true },
   { id: 'pollinations_ai', name: 'Pollinations FLUX AI [免费算力]', isFree: true },
@@ -145,12 +154,12 @@ export const NEGATIVE_PROMPT_PRESETS = [
 ];
 
 export const THEME_ACCENTS = [
-  { id: 'ocean-blue', name: '海洋蔚蓝 (默认)', hex: '#3b82f6', activeBg: 'bg-blue-500', activeText: 'text-blue-500' },
-  { id: 'fox-orange', name: '狐狸经典橙', hex: '#f97316', activeBg: 'bg-orange-500', activeText: 'text-orange-500' },
-  { id: 'emerald', name: '翡翠绿', hex: '#10b981', activeBg: 'bg-emerald-500', activeText: 'text-emerald-500' },
-  { id: 'violet', name: '高雅紫', hex: '#8b5cf6', activeBg: 'bg-violet-500', activeText: 'text-violet-500' },
-  { id: 'rose', name: '玫瑰红', hex: '#f43f5e', activeBg: 'bg-rose-500', activeText: 'text-rose-500' },
-  { id: 'gold', name: '香槟金', hex: '#eab308', activeBg: 'bg-amber-500', activeText: 'text-amber-500' }
+  { id: 'ocean-blue', name: '海洋蔚蓝 (默认)', hex: '#3b82f6' },
+  { id: 'fox-orange', name: '狐狸经典橙', hex: '#f97316' },
+  { id: 'emerald', name: '翡翠绿', hex: '#10b981' },
+  { id: 'violet', name: '高雅紫', hex: '#8b5cf6' },
+  { id: 'rose', name: '玫瑰红', hex: '#f43f5e' },
+  { id: 'gold', name: '香槟金', hex: '#eab308' }
 ];
 
 export const SUPPORTED_LANGUAGES = [

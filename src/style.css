@@ -8,7 +8,7 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 antialiased font-sans min-h-screen selection:bg-blue-500 selection:text-white;
+    @apply transition-colors duration-200 antialiased font-sans min-h-screen selection:bg-blue-500 selection:text-white;
   }
 }
 
@@ -16,7 +16,7 @@
 .font-size-medium { font-size: 15px !important; }
 .font-size-large { font-size: 17px !important; }
 
-/* Dynamic Theme Accent Dynamic Overrides */
+/* Dynamic Accent Colors */
 .theme-ocean-blue { --primary-color: #3b82f6; }
 .theme-fox-orange { --primary-color: #f97316; }
 .theme-emerald { --primary-color: #10b981; }
@@ -57,13 +57,18 @@
   @apply text-white shadow-sm;
 }
 
+/* Modern Floating Dock Bottom Nav Bar */
+.bottom-dock-nav {
+  @apply fixed bottom-3 left-1/2 -translate-x-1/2 z-50 px-3 py-2 bg-slate-900/90 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-full shadow-2xl flex items-center gap-1 sm:gap-2 max-w-[95vw];
+}
+
 .bottom-nav-item {
-  @apply flex flex-col items-center justify-center px-3 py-1 rounded-xl transition text-slate-500 dark:text-slate-400 hover:text-blue-500 cursor-pointer;
+  @apply flex items-center gap-1 px-3 py-1.5 rounded-full transition-all text-slate-400 hover:text-white text-xs font-bold cursor-pointer whitespace-nowrap;
 }
 
 .bottom-nav-item.active {
-  color: var(--primary-color);
-  @apply font-extrabold scale-110;
+  background-color: var(--primary-color);
+  @apply text-white shadow-lg shadow-blue-500/30 scale-105;
 }
 
 .style-chip {

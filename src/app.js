@@ -1,4 +1,4 @@
-import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
+import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
 
 const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
 
@@ -9,6 +9,7 @@ const state = {
   activeTab: 'txt2img',
   themeMode: localStorage.getItem('fox_theme_mode') || 'dark',
   themeAccent: localStorage.getItem('fox_theme_accent') || 'ocean-blue',
+  bgPreset: localStorage.getItem('fox_bg_preset') || 'slate-dark',
   fontSize: localStorage.getItem('fox_font_size') || 'medium',
   lang: localStorage.getItem('fox_lang') || 'zh',
   deviceMode: localStorage.getItem('fox_device_mode') || 'auto',
@@ -51,7 +52,6 @@ const state = {
   isGenerating: false,
   lastGeneratedImage: null,
 
-  // Full-screen Image Preview Modal (Lightbox)
   previewModalImgUrl: null,
 
   historyTab: 'local',
@@ -64,8 +64,7 @@ const state = {
     remainingSpaceMB: '10240.00'
   },
 
-  // Auth & Form State
-  authTab: 'login', // 'login' | 'register'
+  authTab: 'login',
   adminPasswordOnlyInput: '',
   loginUsername: '',
   loginPassword: '',
@@ -96,7 +95,9 @@ function applyAppPreferences() {
   } else {
     document.documentElement.classList.remove('dark');
   }
-  document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${state.themeMode === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`;
+
+  const bgObj = BACKGROUND_PRESETS.find(b => b.id === state.bgPreset) || BACKGROUND_PRESETS[1];
+  document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${bgObj.bgClass}`;
 }
 
 async function safeFetchApi(url, options = {}) {
@@ -145,73 +146,68 @@ function renderApp() {
   const containerWidthClass = state.deviceMode === 'mobile' ? 'max-w-sm' : state.deviceMode === 'desktop' ? 'max-w-6xl' : 'max-w-5xl';
 
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col pb-24 md:pb-20">
-      <!-- Top Bar Header -->
-      <header class="sticky top-0 z-40 glass-panel !rounded-none !border-x-0 !border-t-0 px-4 py-3 flex items-center justify-between shadow-sm">
-        <div class="flex items-center gap-2.5">
-          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-md border-2 border-blue-500/30 flex-shrink-0 bg-slate-900">
+    <div class="min-h-screen flex flex-col pb-24">
+      <!-- Compact Header Bar for Mobile Optimization -->
+      <header class="sticky top-0 z-40 glass-panel !rounded-none !border-x-0 !border-t-0 px-3 py-2 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg overflow-hidden shadow border border-blue-500/30 flex-shrink-0 bg-slate-900">
             <img src="${state.customAvatar}" class="w-full h-full object-cover" />
           </div>
           <div>
-            <h1 class="text-lg font-black tracking-tight fox-gradient-text leading-none">${t('appTitle')}</h1>
-            <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">${t('subTitle')}</p>
+            <h1 class="text-base font-black tracking-tight fox-gradient-text leading-none">${t('appTitle')}</h1>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <!-- Language Selector -->
-          <select id="header-lang-select" class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 font-bold">
-            ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.name}</option>`).join('')}
+        <div class="flex items-center gap-1.5">
+          <select id="header-lang-select" class="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5 font-bold">
+            ${SUPPORTED_LANGUAGES.map(l => `<option value="${l.id}" ${state.lang === l.id ? 'selected' : ''}>${l.id.toUpperCase()}</option>`).join('')}
           </select>
 
-          <!-- User Badge -->
-          <span class="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
             👤 ${state.user.username}
           </span>
 
-          <button id="theme-mode-btn" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <button id="theme-mode-btn" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition text-xs">
             ${state.themeMode === 'dark' ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
 
       <!-- Main Workspace Container -->
-      <main class="flex-1 ${containerWidthClass} w-full mx-auto p-4 md:p-6 space-y-6 transition-all duration-200">
+      <main class="flex-1 ${containerWidthClass} w-full mx-auto p-3 sm:p-5 space-y-5 transition-all duration-200">
         ${renderActiveTabContent()}
       </main>
 
-      <!-- Image Full Preview Lightbox Modal -->
+      <!-- Image Lightbox Modal -->
       ${state.previewModalImgUrl ? renderImagePreviewModal() : ''}
 
-      <!-- Fixed Bottom Main Tab Bar -->
-      <footer class="fixed bottom-0 left-0 right-0 z-50 glass-panel !rounded-none !border-x-0 !border-b-0 px-2 py-2.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-lg">
-        <div class="max-w-md mx-auto flex items-center justify-around text-[11px] font-bold text-slate-500">
-          <button data-tab="txt2img" class="bottom-nav-item ${state.activeTab === 'txt2img' ? 'active' : ''}">
-            <span class="text-lg block">🎨</span>
-            <span>${t('txt2img')}</span>
-          </button>
-          <button data-tab="img2img" class="bottom-nav-item ${state.activeTab === 'img2img' ? 'active' : ''}">
-            <span class="text-lg block">🖼️</span>
-            <span>${t('img2img')}</span>
-          </button>
-          <button data-tab="models" class="bottom-nav-item ${state.activeTab === 'models' ? 'active' : ''}">
-            <span class="text-lg block">📦</span>
-            <span>${t('models')}</span>
-          </button>
-          <button data-tab="translator" class="bottom-nav-item ${state.activeTab === 'translator' ? 'active' : ''}">
-            <span class="text-lg block">💬</span>
-            <span>${t('translator')}</span>
-          </button>
-          <button data-tab="history" class="bottom-nav-item ${state.activeTab === 'history' ? 'active' : ''}">
-            <span class="text-lg block">📜</span>
-            <span>${t('history')}</span>
-          </button>
-          <button data-tab="settings" class="bottom-nav-item ${state.activeTab === 'settings' ? 'active' : ''}">
-            <span class="text-lg block">⚙️</span>
-            <span>${t('settings')}</span>
-          </button>
-        </div>
-      </footer>
+      <!-- Floating Modern Bottom Dock Navigation Bar -->
+      <nav class="bottom-dock-nav">
+        <button data-tab="txt2img" class="bottom-nav-item ${state.activeTab === 'txt2img' ? 'active' : ''}">
+          <span>🎨</span>
+          <span class="hidden sm:inline">${t('txt2img')}</span>
+        </button>
+        <button data-tab="img2img" class="bottom-nav-item ${state.activeTab === 'img2img' ? 'active' : ''}">
+          <span>🖼️</span>
+          <span class="hidden sm:inline">${t('img2img')}</span>
+        </button>
+        <button data-tab="models" class="bottom-nav-item ${state.activeTab === 'models' ? 'active' : ''}">
+          <span>📦</span>
+          <span class="hidden sm:inline">${t('models')}</span>
+        </button>
+        <button data-tab="translator" class="bottom-nav-item ${state.activeTab === 'translator' ? 'active' : ''}">
+          <span>💬</span>
+          <span class="hidden sm:inline">${t('translator')}</span>
+        </button>
+        <button data-tab="history" class="bottom-nav-item ${state.activeTab === 'history' ? 'active' : ''}">
+          <span>📜</span>
+          <span class="hidden sm:inline">${t('history')}</span>
+        </button>
+        <button data-tab="settings" class="bottom-nav-item ${state.activeTab === 'settings' ? 'active' : ''}">
+          <span>⚙️</span>
+          <span class="hidden sm:inline">${t('settings')}</span>
+        </button>
+      </nav>
     </div>
   `;
 
@@ -880,7 +876,7 @@ function renderTranslatorWorkspace() {
 }
 
 // -------------------------------------------------------------
-// Settings Workspace
+// Settings Workspace with Background Customizer
 // -------------------------------------------------------------
 function renderSettingsWorkspace() {
   return `
@@ -906,6 +902,18 @@ function renderSettingsWorkspace() {
         </div>
       </div>
 
+      <!-- Background Color Customizer -->
+      <div class="glass-panel p-3.5 space-y-2">
+        <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🌌 界面背景色调调节：</label>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          ${BACKGROUND_PRESETS.map(bg => `
+            <button data-bg-preset="${bg.id}" class="p-2 rounded-xl text-xs font-bold border ${state.bgPreset === bg.id ? 'border-blue-500 ring-2 ring-blue-500/30 font-black' : 'border-slate-700'} ${bg.bgClass} transition hover:scale-105">
+              ${bg.name}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
       <div class="glass-panel p-3.5 space-y-2">
         <label class="text-xs font-bold text-slate-800 dark:text-slate-200">${t('langSelect')}</label>
         <select id="settings-lang-select" class="fox-input font-bold">
@@ -913,7 +921,6 @@ function renderSettingsWorkspace() {
         </select>
       </div>
 
-      <!-- Theme Color Palette Accent Selection -->
       <div class="glass-panel p-3.5 space-y-2">
         <label class="text-xs font-bold text-slate-800 dark:text-slate-200">🎨 界面主题调色 (主色调)：</label>
         <div class="flex items-center gap-2 overflow-x-auto">
@@ -1052,7 +1059,7 @@ function renderAccordion(id, title, contentHtml) {
 }
 
 // -------------------------------------------------------------
-// Interactive Events Listener
+// Interactive Event Handler Binding
 // -------------------------------------------------------------
 function bindGlobalEvents() {
   document.addEventListener('change', (e) => {
@@ -1078,7 +1085,16 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('click', async (e) => {
-    // Open preview image in Lightbox Modal
+    // Background Customizer Preset Selection
+    const bgPresetBtn = e.target.closest('[data-bg-preset]');
+    if (bgPresetBtn) {
+      state.bgPreset = bgPresetBtn.getAttribute('data-bg-preset');
+      localStorage.setItem('fox_bg_preset', state.bgPreset);
+      applyAppPreferences();
+      renderApp();
+      return;
+    }
+
     const openPrev = e.target.closest('[data-open-preview]');
     if (openPrev) {
       state.previewModalImgUrl = decodeURIComponent(openPrev.getAttribute('data-open-preview'));
@@ -1092,7 +1108,6 @@ function bindGlobalEvents() {
       return;
     }
 
-    // Theme Accent Selector
     const themeAccBtn = e.target.closest('[data-theme-accent]');
     if (themeAccBtn) {
       state.themeAccent = themeAccBtn.getAttribute('data-theme-accent');
