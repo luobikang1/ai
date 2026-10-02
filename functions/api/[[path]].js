@@ -63,8 +63,8 @@ export async function onRequest(context) {
       }
     }
 
-    // Auth & Separation of Admin Login and Email User Login/Register
-    if (url.pathname === '/api/admin-login') {
+    // Admin Login (ADMIN_PASSWORD env variable)
+    if (url.pathname === '/api/admin-login' || url.pathname === '/api/login') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
       const password = body.password || '';
@@ -79,21 +79,28 @@ export async function onRequest(context) {
         }), { headers: jsonHeaders });
       }
 
-      return new Response(JSON.stringify({ ok: false, error: '管理员变量密码校验失败，请检查设置的环境变量 ADMIN_PASSWORD' }), { status: 401, headers: jsonHeaders });
+      return new Response(JSON.stringify({ ok: false, error: '管理员密码不匹配，默认初始密码为 fox123456' }), { status: 401, headers: jsonHeaders });
     }
 
+    // Regular User Login via Email & Registered Password
     if (url.pathname === '/api/user-login') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
       const email = (body.email || '').trim().toLowerCase();
+      const password = body.password || '';
 
       if (!email || !email.includes('@')) {
-        return new Response(JSON.stringify({ ok: false, error: '请输入有效的邮箱地址' }), { status: 400, headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, error: '请输入有效的登录邮箱地址' }), { status: 400, headers: jsonHeaders });
+      }
+
+      if (!password) {
+        return new Response(JSON.stringify({ ok: false, error: '请输入注册时设置的密码' }), { status: 400, headers: jsonHeaders });
       }
 
       let foundUser = null;
       if (env.DB) {
         try {
+          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
           const { results } = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).all();
           if (results && results.length > 0) {
             foundUser = results[0];
@@ -101,8 +108,19 @@ export async function onRequest(context) {
         } catch(e) {}
       }
 
-      const username = foundUser ? foundUser.username : email.split('@')[0];
+      if (foundUser && foundUser.password) {
+        if (foundUser.password !== password) {
+          return new Response(JSON.stringify({ ok: false, error: '密码不正确，请重新输入' }), { status: 401, headers: jsonHeaders });
+        }
+        return new Response(JSON.stringify({
+          ok: true,
+          user: { username: foundUser.username, email: foundUser.email, role: 'user' },
+          token: btoa(JSON.stringify({ username: foundUser.username, email: foundUser.email, role: 'user', exp: Date.now() + 86400000 }))
+        }), { headers: jsonHeaders });
+      }
 
+      // Offline/In-memory Account Login fallback
+      const username = email.split('@')[0];
       return new Response(JSON.stringify({
         ok: true,
         user: { username, email, role: 'user' },
@@ -110,11 +128,13 @@ export async function onRequest(context) {
       }), { headers: jsonHeaders });
     }
 
+    // User Register Endpoint
     if (url.pathname === '/api/register') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
       const email = (body.email || '').trim().toLowerCase();
       const username = (body.username || '').trim() || email.split('@')[0];
+      const password = body.password || '';
       const verifyCode = body.verifyCode || '';
       const requireVerify = body.enableEmailVerify === true;
       const expectedCode = body.systemVerifyCode || env.SYSTEM_VERIFY_CODE || '888888';
@@ -123,14 +143,18 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({ ok: false, error: '请输入正确的电子邮箱地址' }), { status: 400, headers: jsonHeaders });
       }
 
+      if (!password) {
+        return new Response(JSON.stringify({ ok: false, error: '请设置您的账号登录密码' }), { status: 400, headers: jsonHeaders });
+      }
+
       if (requireVerify && verifyCode !== expectedCode) {
-        return new Response(JSON.stringify({ ok: false, error: '邮箱验证码错误或已失效，请重新输入' }), { status: 400, headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, error: '邮箱验证码错误，请检查输入' }), { status: 400, headers: jsonHeaders });
       }
 
       if (env.DB) {
         try {
-          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, created_at INTEGER)').run();
-          await env.DB.prepare('INSERT INTO users (id, email, username, created_at) VALUES (?, ?, ?, ?)').bind(`user-${Date.now()}`, email, username, Date.now()).run();
+          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
+          await env.DB.prepare('INSERT INTO users (id, email, username, password, created_at) VALUES (?, ?, ?, ?, ?)').bind(`user-${Date.now()}`, email, username, password, Date.now()).run();
         } catch(e) {}
       }
 
@@ -138,10 +162,11 @@ export async function onRequest(context) {
         ok: true,
         user: { username, email, role: 'user' },
         token: btoa(JSON.stringify({ username, email, role: 'user', exp: Date.now() + 86400000 })),
-        message: '邮箱注册成功！'
+        message: '邮箱账号注册成功！'
       }), { headers: jsonHeaders });
     }
 
+    // Users List Endpoint (Admin only)
     if (url.pathname === '/api/users') {
       let usersList = [{ id: '1', username: 'admin', email: 'admin@fox.ai', role: 'admin', createdAt: '系统默认' }];
       if (env.DB) {

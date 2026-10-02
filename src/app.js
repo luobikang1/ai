@@ -343,19 +343,23 @@ function renderWhiteFoxAuthScreen() {
         <form id="auth-form" class="space-y-4">
           ${isAdminLogin ? `
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">管理员密码 (变量密码 ADMIN_PASSWORD):</label>
-              <input type="password" id="auth-admin-password" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="默认密码: fox123456" value="${state.adminPasswordOnlyInput}" required />
+              <label class="text-xs font-bold text-slate-700">管理员密码 (环境变量 ADMIN_PASSWORD):</label>
+              <input type="password" id="auth-admin-password" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="默认初始密码: fox123456" value="${state.adminPasswordOnlyInput}" required />
             </div>
             <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
               👑 验证管理员密码进入系统
             </button>
           ` : isUserLogin ? `
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">登录邮箱地址:</label>
+              <label class="text-xs font-bold text-slate-700">登录邮箱:</label>
               <input type="email" id="auth-login-email" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="user@example.com" value="${state.loginEmailInput}" required />
             </div>
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">账号密码:</label>
+              <input type="password" id="auth-login-password" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="输入注册密码" value="${state.registerPassword}" required />
+            </div>
             <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
-              🔑 邮箱一键登录工作台
+              🔑 邮箱密码登录工作台
             </button>
           ` : `
             <div class="space-y-1">
@@ -364,15 +368,20 @@ function renderWhiteFoxAuthScreen() {
             </div>
 
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">注册用户名:</label>
+              <label class="text-xs font-bold text-slate-700">设置用户名:</label>
               <input type="text" id="auth-username" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置用户名" value="${state.registerUsername}" required />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">设置密码:</label>
+              <input type="password" id="auth-password" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="设置账号登录密码" value="${state.registerPassword}" required />
             </div>
 
             ${state.settings.enableEmailVerify ? `
               <div class="space-y-1">
                 <div class="flex justify-between items-center">
-                  <label class="text-xs font-bold text-slate-700">邮箱验证码 (管理员已开启验证):</label>
-                  <span class="text-[10px] text-blue-500">验证码可联系管理员获取</span>
+                  <label class="text-xs font-bold text-slate-700">邮箱验证码 (管理员开启防护):</label>
+                  <span class="text-[10px] text-blue-500">向管理员获取验证码</span>
                 </div>
                 <input type="text" id="auth-verify-code" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="输入 6 位验证码" value="${state.registerVerifyCode}" required />
               </div>
@@ -445,12 +454,13 @@ function bindAuthEvents() {
       }
     } else if (state.authTab === 'user_login') {
       const email = document.getElementById('auth-login-email')?.value.trim();
+      const password = document.getElementById('auth-login-password')?.value.trim();
 
       try {
         const data = await fetchWithTimeout('/api/user-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+          body: JSON.stringify({ email, password })
         }, 8000);
 
         if (data && data.ok) {
@@ -461,12 +471,13 @@ function bindAuthEvents() {
           return;
         }
       } catch (err) {
-        state.authError = err.message || '邮箱登录失败，请先注册';
+        state.authError = err.message || '邮箱密码错误或账号不存在，请先注册';
         renderApp();
       }
     } else {
       const email = document.getElementById('auth-email').value.trim();
       const username = document.getElementById('auth-username').value.trim();
+      const password = document.getElementById('auth-password').value.trim();
       const verifyCode = document.getElementById('auth-verify-code')?.value.trim();
 
       try {
@@ -476,6 +487,7 @@ function bindAuthEvents() {
           body: JSON.stringify({
             email,
             username,
+            password,
             verifyCode,
             enableEmailVerify: state.settings.enableEmailVerify,
             systemVerifyCode: state.settings.systemVerifyCode
