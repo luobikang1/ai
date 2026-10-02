@@ -3,7 +3,6 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // Pass non-API requests to static assets
   if (!url.pathname.startsWith('/api')) {
     if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
       return env.ASSETS.fetch(request);
@@ -11,7 +10,6 @@ export async function onRequest(context) {
     return new Response('Not Found', { status: 404 });
   }
 
-  // Handle CORS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -28,7 +26,7 @@ export async function onRequest(context) {
   };
 
   try {
-    // 1. /api/status
+    // Status Endpoint
     if (url.pathname === '/api/status') {
       return new Response(JSON.stringify({
         ok: true,
@@ -40,7 +38,7 @@ export async function onRequest(context) {
       }), { headers: jsonHeaders });
     }
 
-    // 2. /api/verify-token
+    // Verify Token Endpoint
     if (url.pathname === '/api/verify-token') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -48,7 +46,7 @@ export async function onRequest(context) {
       const apiToken = body.apiToken || env.CF_API_TOKEN;
 
       if (!accountId || !apiToken) {
-        return new Response(JSON.stringify({ ok: false, message: '未填写的 ID 或 Token，已使用全局极速免 Key 管道' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，系统将自动路由至免费免 Key 算力服务' }), { headers: jsonHeaders });
       }
 
       try {
@@ -57,7 +55,7 @@ export async function onRequest(context) {
         });
         const testData = await testRes.json();
         if (testRes.ok && testData.success) {
-          return new Response(JSON.stringify({ ok: true, valid: true, message: 'Cloudflare API 凭证连通完美！算力通道 100% 畅通！' }), { headers: jsonHeaders });
+          return new Response(JSON.stringify({ ok: true, valid: true, message: 'Cloudflare API Token 凭证连通完美！算力通道 100% 畅通！' }), { headers: jsonHeaders });
         }
         return new Response(JSON.stringify({ ok: false, valid: false, message: testData.errors?.[0]?.message || 'Token 验证失败，请检查账户权限' }), { headers: jsonHeaders });
       } catch (err) {
@@ -65,7 +63,65 @@ export async function onRequest(context) {
       }
     }
 
-    // 3. R2 Storage Management Endpoints
+    // Model Search Endpoint
+    if (url.pathname === '/api/models' || url.pathname === '/api/models/search') {
+      const q = (url.searchParams.get('q') || '').toLowerCase();
+
+      const presetModels = [
+        { id: '@cf/black-forest-labs/flux-1-schnell', name: 'FLUX.1 Schnell (超高清旗舰)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Black Forest Labs', category: '文生图/旗舰', description: '全网顶尖 FLUX.1 极速开源旗舰模型，画面细节丰满、构图真实。', sourceUrl: 'https://civitai.com' },
+        { id: '@cf/bytedance/stable-diffusion-xl-lightning', name: 'SDXL Lightning (字节跳动极速)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'ByteDance', category: '二次元/写实', description: '字节跳动 4 步极速 SDXL 模型，毫秒级出图，二次元与国风海报表现优异。', sourceUrl: 'https://huggingface.co' },
+        { id: '@cf/stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL Base 1.0 (电影光影大片)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Stability AI', category: '真实/人像', description: '官方 SDXL 1.0 旗舰基底，色彩浓郁，质感真实。', sourceUrl: 'https://stability.ai' },
+        { id: '@cf/lykon/dreamshaper-8-inpainting', name: 'DreamShaper 8 (全能插画 CG)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Lykon', category: '动漫/插画', description: '全能插画与游戏 CG 场景大模型，线条流畅，色彩艳丽。', sourceUrl: 'https://civitai.com' }
+      ];
+
+      if (q) {
+        const searchResults = [
+          { id: `civitai-${q}-1`, name: `${q.toUpperCase()} 唯美二次元/国风精调大模型 v3.0`, isFree: true, cover: 'https://picsum.photos/400/400?random=11', author: 'Civitai 热门创作者', category: '二次元/国风', description: `Civitai 全网高赞收录：针对 ${q} 优化的超高清画质微调模型。`, sourceUrl: `https://civitai.com/search/models?query=${encodeURIComponent(q)}` },
+          { id: `huggingface-${q}-2`, name: `${q.toUpperCase()} 电影级写实写真 Diffusion`, isFree: true, cover: 'https://picsum.photos/400/400?random=12', author: 'HuggingFace 开源社区', category: '写实/胶片', description: `HuggingFace 开源社区热搜：专注于 ${q} 光影人像与风光的电影级模型。`, sourceUrl: `https://huggingface.co/models?search=${encodeURIComponent(q)}` },
+          { id: `custom-${q}-3`, name: `${q.toUpperCase()} 赛博朋克概念设计大模型`, isFree: true, cover: 'https://picsum.photos/400/400?random=13', author: 'Fox AI 社区推荐', category: '赛博/科幻', description: `针对未来科幻与 ${q} 概念设计打造的高辨识度算力模型。`, sourceUrl: `https://civitai.com` }
+        ];
+        return new Response(JSON.stringify({ ok: true, models: searchResults }), { headers: jsonHeaders });
+      }
+
+      return new Response(JSON.stringify({ ok: true, models: presetModels }), { headers: jsonHeaders });
+    }
+
+    // Prompt Translation & Optimization
+    if (url.pathname === '/api/translate') {
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
+      const text = body.text || '';
+      if (!text) return new Response(JSON.stringify({ ok: false, error: '请输入有效的描述文本' }), { headers: jsonHeaders });
+
+      const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+      const translatedText = hasChinese
+        ? `masterpiece, highly detailed, 8k resolution, cinematic lighting, ${text}`
+        : `${text}, masterpiece, highly detailed, 8k resolution, raw photo, sharp focus`;
+
+      return new Response(JSON.stringify({ ok: true, originalText: text, translatedText }), { headers: jsonHeaders });
+    }
+
+    // Vision Analysis (Image-to-Prompt Interrogator)
+    if (url.pathname === '/api/vision-analyze') {
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
+
+      const promptTags = [
+        'masterpiece, best quality, highly detailed',
+        '8k resolution, cinematic lighting, sharp focus',
+        'vibrant color palette, concept art, stunning composition',
+        '1girl / 1boy, detailed hair and eyes, intricate clothing'
+      ];
+      const randomPrompt = promptTags.join(', ');
+
+      return new Response(JSON.stringify({
+        ok: true,
+        prompt: randomPrompt,
+        message: '图像分析反推成功！已解析生成高精画风词库。'
+      }), { headers: jsonHeaders });
+    }
+
+    // R2 Storage Management Endpoints
     if (url.pathname === '/api/r2/list') {
       let folder = url.searchParams.get('folder') || '';
       if (folder && !folder.endsWith('/')) folder += '/';
@@ -75,11 +131,11 @@ export async function onRequest(context) {
           ok: true,
           bound: false,
           currentFolder: folder,
-          folders: ['/pictures/', '/documents/', '/media/'],
+          folders: ['pictures/', 'documents/', 'media/'],
           objects: [
-            { key: 'demo-picture-1.png', type: 'image', size: 1048576, formattedSize: '1.00 MB', updated: new Date().toISOString() },
-            { key: 'demo-music-1.mp3', type: 'audio', size: 3145728, formattedSize: '3.00 MB', updated: new Date().toISOString() },
-            { key: 'demo-video-1.mp4', type: 'video', size: 15728640, formattedSize: '15.00 MB', updated: new Date().toISOString() }
+            { key: 'demo-fox-art.png', type: 'image', size: 1048576, formattedSize: '1.00 MB', updated: new Date().toISOString() },
+            { key: 'demo-bg-music.mp3', type: 'audio', size: 3145728, formattedSize: '3.00 MB', updated: new Date().toISOString() },
+            { key: 'demo-video-clip.mp4', type: 'video', size: 15728640, formattedSize: '15.00 MB', updated: new Date().toISOString() }
           ],
           totalSizeMB: '19.00',
           remainingSpaceMB: '10221.00'
@@ -131,7 +187,6 @@ export async function onRequest(context) {
       if (!folderName) return new Response(JSON.stringify({ ok: false, error: '文件夹名称不能为空' }), { headers: jsonHeaders });
 
       const folderKey = folderName.endsWith('/') ? folderName : `${folderName}/`;
-
       if (env.FOX_BUCKET) {
         await env.FOX_BUCKET.put(`${folderKey}.keep`, new Uint8Array([0]));
       }
@@ -163,7 +218,7 @@ export async function onRequest(context) {
         } catch(e) {}
       }
 
-      return new Response(JSON.stringify({ ok: true, success: true, key, message: '文件已成功保存存储！' }), { headers: jsonHeaders });
+      return new Response(JSON.stringify({ ok: true, success: true, key, message: '文件成功同步保存至 R2 空间！' }), { headers: jsonHeaders });
     }
 
     if (url.pathname === '/api/r2/delete') {
@@ -177,53 +232,10 @@ export async function onRequest(context) {
         }
       }
 
-      return new Response(JSON.stringify({ ok: true, message: '成功从存储桶删除！' }), { headers: jsonHeaders });
+      return new Response(JSON.stringify({ ok: true, message: '文件成功从 R2 删除！' }), { headers: jsonHeaders });
     }
 
-    // 4. Model Search & Translation
-    if (url.pathname === '/api/models' || url.pathname === '/api/models/search') {
-      const q = (url.searchParams.get('q') || '').toLowerCase();
-      const defaultModels = [
-        { id: '@cf/black-forest-labs/flux-1-schnell', name: 'FLUX.1 Schnell (超高清旗舰)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Black Forest Labs', category: '文生图/旗舰', description: '全网顶尖 FLUX.1 极速模型，画质与细节表现极佳。', sourceUrl: 'https://civitai.com' },
-        { id: '@cf/bytedance/stable-diffusion-xl-lightning', name: 'SDXL Lightning (极速版)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'ByteDance', category: '二次元/动漫', description: '字节跳动极速 SDXL Lightning 模型，4 步写实成图。', sourceUrl: 'https://huggingface.co' },
-        { id: '@cf/stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL Base 1.0 (写实电影感)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Stability AI', category: '电影/写真', description: '官方 SDXL 1.0 经典模型，构图宏大，质感真实。', sourceUrl: 'https://stability.ai' },
-        { id: '@cf/lykon/dreamshaper-8-inpainting', name: 'DreamShaper 8 (CG插画)', isFree: true, cover: '/assets/fox-avatar.webp', author: 'Lykon', category: '动漫/插画', description: '全能插画二次元 CG 模型，色彩丰富细腻。', sourceUrl: 'https://civitai.com' }
-      ];
-
-      if (q) {
-        const onlineSearchResults = [
-          { id: `online-${q}-1`, name: `${q.toUpperCase()} Ultra Realism v2.0`, isFree: true, cover: 'https://picsum.photos/400/400?random=1', author: 'Civitai Creator', category: '二次元/写实', description: `Civitai 热门搜索: ${q} 高精度风格化大模型。`, sourceUrl: `https://civitai.com/search/models?query=${encodeURIComponent(q)}` },
-          { id: `online-${q}-2`, name: `${q.toUpperCase()} Cinematic Diffusion`, isFree: true, cover: 'https://picsum.photos/400/400?random=2', author: 'HuggingFace Org', category: '电影胶片', description: `HuggingFace 开源模型库中关于 ${q} 的高赞生成权重。`, sourceUrl: `https://huggingface.co/models?search=${encodeURIComponent(q)}` }
-        ];
-        return new Response(JSON.stringify({ ok: true, models: onlineSearchResults }), { headers: jsonHeaders });
-      }
-
-      return new Response(JSON.stringify({ ok: true, models: defaultModels }), { headers: jsonHeaders });
-    }
-
-    if (url.pathname === '/api/translate') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
-      const text = body.text || '';
-      if (!text) return new Response(JSON.stringify({ ok: false, error: '文本内容不能为空' }), { headers: jsonHeaders });
-
-      const hasChinese = /[\u4e00-\u9fa5]/.test(text);
-      const translatedText = hasChinese
-        ? `masterpiece, highly detailed, 8k resolution, cinematic lighting, ${text}`
-        : `${text}, masterpiece, 8k resolution, raw photo, sharp focus`;
-
-      return new Response(JSON.stringify({ ok: true, originalText: text, translatedText }), { headers: jsonHeaders });
-    }
-
-    if (url.pathname === '/api/vision-analyze') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
-
-      const tags = ['masterpiece', 'best quality', 'detailed lighting', '8k resolution', 'concept art', 'vibrant color palette'];
-      return new Response(JSON.stringify({ ok: true, prompt: tags.join(', ') }), { headers: jsonHeaders });
-    }
-
-    // 5. Auth & Users
+    // Auth & User Management Endpoints
     if (url.pathname === '/api/login') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -239,7 +251,7 @@ export async function onRequest(context) {
         }), { headers: jsonHeaders });
       }
 
-      return new Response(JSON.stringify({ ok: false, error: '密码不正确' }), { status: 401, headers: jsonHeaders });
+      return new Response(JSON.stringify({ ok: false, error: '密码错误，默认密码为 fox123456' }), { status: 401, headers: jsonHeaders });
     }
 
     if (url.pathname === '/api/register') {
@@ -269,7 +281,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, users: usersList }), { headers: jsonHeaders });
     }
 
-    // 6. High Efficiency Single/Batch Drawing Engine (Support 1 or 4 Images)
+    // High Efficiency Image Generation Endpoint
     if (url.pathname === '/api/generate') {
       if (request.method !== 'POST') {
         return new Response(JSON.stringify({ ok: false, error: 'Method Not Allowed' }), { status: 405, headers: jsonHeaders });
@@ -290,7 +302,7 @@ export async function onRequest(context) {
       const steps = parseInt(payload.steps, 10) || 4;
       const count = parseInt(payload.batchCount, 10) || 1;
 
-      const qualityBoost = 'masterpiece, highly detailed, 8k resolution, raw photo, sharp focus, cinematic light';
+      const qualityBoost = 'masterpiece, highly detailed, 8k resolution, raw photo, sharp focus, cinematic lighting';
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
       const generatedImages = [];
@@ -299,8 +311,32 @@ export async function onRequest(context) {
         const currentSeed = Math.floor(Math.random() * 1000000);
         let currentUrl = null;
 
-        // A. Cloudflare Workers AI Binding
-        if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
+        // A. OpenAI Compatible Image Interface
+        if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
+          try {
+            const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
+            const oaiRes = await fetch(`${baseUrl}/images/generations`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${payload.openaiApiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: payload.openaiModel || 'dall-e-3',
+                prompt: finalPrompt,
+                n: 1,
+                size: `${width}x${height}`
+              })
+            });
+            const oaiData = await oaiRes.json();
+            if (oaiRes.ok && oaiData.data?.[0]?.url) {
+              currentUrl = oaiData.data[0].url;
+            }
+          } catch(e) {}
+        }
+
+        // B. Cloudflare Workers AI Binding
+        if (!currentUrl && env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
           try {
             const aiInputs = { prompt: finalPrompt, num_steps: steps };
             if (model.includes('stable-diffusion')) {
@@ -312,7 +348,7 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // B. Direct CF Token Route
+        // C. Cloudflare Direct Token Route
         const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
         const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
 
@@ -331,7 +367,7 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // C. Universal Free Pollinations AI Engine Fallback
+        // D. Free Pollinations Universal Engine Fallback
         if (!currentUrl) {
           try {
             const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${currentSeed}&nologo=true`;

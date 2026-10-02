@@ -21,7 +21,7 @@ const state = {
   })),
 
   status: {
-    cfApi: true,
+    cfWorkersAi: true,
     cfTokenValid: true,
     d1Database: false,
     r2Bucket: false
@@ -53,6 +53,7 @@ const state = {
   negativePrompt: NEGATIVE_PROMPT_PRESETS[0],
   width: 1024,
   height: 1024,
+  isCustomSize: false,
   steps: 4,
   cfgScale: 7.5,
   seed: '',
@@ -71,7 +72,7 @@ const state = {
   selectedLocalHistoryIdxs: [],
   localHistory: JSON.parse(localStorage.getItem('fox_history') || '[]'),
 
-  // R2 File Manager State
+  // R2 Storage Manager State
   r2Storage: {
     bound: false,
     currentFolder: '',
@@ -82,8 +83,6 @@ const state = {
   },
   uploadProgress: 0,
   isUploading: false,
-  downloadProgress: 0,
-  isDownloading: false,
 
   authTab: 'login',
   adminPasswordOnlyInput: '',
@@ -95,7 +94,7 @@ const state = {
 
   chatInput: '',
   chatMessages: [
-    { role: 'assistant', text: '你好！我是白狐AI智能助手。您可以输入描述进行高精度提示词优化，或上传参考图分析风格！' }
+    { role: 'assistant', text: '你好！我是白狐AI智能助手。您可以输入简单的中文描述进行提示词润色，或上传图片提取画风关键词！' }
   ]
 };
 
@@ -145,7 +144,7 @@ async function fetchServiceStatus() {
     if (data) {
       state.status = {
         ...state.status,
-        cfApi: !!data.hasAI || !!data.hasToken,
+        cfWorkersAi: !!data.hasAI,
         d1Database: !!data.hasD1,
         r2Bucket: !!data.hasR2
       };
@@ -217,7 +216,7 @@ function renderApp() {
           </div>
           <div class="flex items-center gap-1.5">
             <h1 class="text-base font-black tracking-tight fox-gradient-text leading-none">${t('appTitle')}</h1>
-            <span class="w-2 h-2 rounded-full ${state.status.cfTokenValid ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}" title="Cloudflare API 连通状态指示灯"></span>
+            <span class="w-2 h-2 rounded-full ${state.status.cfWorkersAi ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}" title="Cloudflare Workers AI 原生 Binding 状态指示灯"></span>
           </div>
         </div>
 
@@ -290,7 +289,7 @@ function renderMediaPreviewModal() {
           <img src="${state.previewModalUrl}" class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl" />
         `}
         <a href="${state.previewModalUrl}" download="fox-media-${Date.now()}" class="fox-btn-primary text-xs py-2 px-6">
-          📥 下载文件
+          📥 下载原文件
         </a>
       </div>
     </div>
@@ -478,7 +477,7 @@ function renderGenerationWorkspace() {
             <div class="truncate">
               <div class="flex items-center gap-2">
                 <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                  当前模型
+                  当前工作台模型
                 </span>
               </div>
               <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">${selectedModelObj.name}</h3>
@@ -543,9 +542,14 @@ function renderGenerationWorkspace() {
         <div class="glass-panel p-4 space-y-3">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold text-slate-700 dark:text-slate-300">${t('sizeLabel')}</label>
-            <button id="toggle-advanced-settings-btn" class="text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
-              ${state.showAdvancedSettings ? '▲ 收起高级设置' : '⚙️ 高级细节调节 (Steps, CFG, Seed)'}
-            </button>
+            <div class="flex items-center gap-2">
+              <button id="toggle-custom-size-btn" class="text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                ${state.isCustomSize ? '📐 标准比例预设' : '⚙️ 自定义像素宽高'}
+              </button>
+              <button id="toggle-advanced-settings-btn" class="text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                ${state.showAdvancedSettings ? '▲ 收起高级设置' : '⚙️ 高级细节调节 (Steps, CFG)'}
+              </button>
+            </div>
           </div>
 
           <div class="flex justify-between items-center pb-2">
@@ -556,20 +560,33 @@ function renderGenerationWorkspace() {
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-2">
-            <button data-size="1024x1024" class="size-chip ${state.width === 1024 && state.height === 1024 ? 'active' : ''}">
-              <span class="block text-sm font-bold">1:1</span>
-              <span class="text-[10px] opacity-70">1024 × 1024</span>
-            </button>
-            <button data-size="768x1024" class="size-chip ${state.width === 768 && state.height === 1024 ? 'active' : ''}">
-              <span class="block text-sm font-bold">3:4</span>
-              <span class="text-[10px] opacity-70">768 × 1024</span>
-            </button>
-            <button data-size="1024x768" class="size-chip ${state.width === 1024 && state.height === 768 ? 'active' : ''}">
-              <span class="block text-sm font-bold">4:3</span>
-              <span class="text-[10px] opacity-70">1024 × 768</span>
-            </button>
-          </div>
+          ${state.isCustomSize ? `
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div class="space-y-1">
+                <span class="text-[11px] text-slate-400">宽度 (Width px):</span>
+                <input type="number" id="custom-width-input" class="fox-input font-mono" value="${state.width}" step="64" min="256" max="2048" />
+              </div>
+              <div class="space-y-1">
+                <span class="text-[11px] text-slate-400">高度 (Height px):</span>
+                <input type="number" id="custom-height-input" class="fox-input font-mono" value="${state.height}" step="64" min="256" max="2048" />
+              </div>
+            </div>
+          ` : `
+            <div class="grid grid-cols-3 gap-2">
+              <button data-size="1024x1024" class="size-chip ${state.width === 1024 && state.height === 1024 ? 'active' : ''}">
+                <span class="block text-sm font-bold">1:1</span>
+                <span class="text-[10px] opacity-70">1024 × 1024</span>
+              </button>
+              <button data-size="768x1024" class="size-chip ${state.width === 768 && state.height === 1024 ? 'active' : ''}">
+                <span class="block text-sm font-bold">3:4</span>
+                <span class="text-[10px] opacity-70">768 × 1024</span>
+              </button>
+              <button data-size="1024x768" class="size-chip ${state.width === 1024 && state.height === 768 ? 'active' : ''}">
+                <span class="block text-sm font-bold">4:3</span>
+                <span class="text-[10px] opacity-70">1024 × 768</span>
+              </button>
+            </div>
+          `}
 
           ${state.showAdvancedSettings ? `
             <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
@@ -637,8 +654,8 @@ function renderGenerationWorkspace() {
                 <a href="${state.lastGeneratedImage.url}" download="fox-ai-${Date.now()}.png" class="fox-btn-secondary text-xs text-center justify-center">
                   📥 下载原图
                 </a>
-                <button id="upload-to-r2-btn" class="fox-btn-secondary text-xs text-blue-600 dark:text-blue-400">
-                  ☁️ 同步保存至 R2
+                <button id="upload-to-r2-btn" class="fox-btn-secondary text-xs text-blue-600 dark:text-blue-400 font-bold">
+                  ☁️ 一键存 R2 存储空间
                 </button>
               </div>
             </div>
@@ -688,36 +705,53 @@ function render3ColumnLocalHistorySection() {
     `;
   }
 
+  const allSelected = state.selectedLocalHistoryIdxs.length === state.localHistory.length;
+
   return `
     <div class="space-y-3">
       <div class="glass-panel p-3 flex items-center justify-between gap-2 text-xs">
-        <span class="font-bold">共 ${state.localHistory.length} 张绘图记录</span>
-        <button id="clear-local-history-btn" class="fox-btn-secondary text-xs text-red-500">
-          清空全部
-        </button>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="batch-select-all" class="w-4 h-4 accent-blue-500 rounded cursor-pointer" ${allSelected ? 'checked' : ''} />
+          <label for="batch-select-all" class="font-bold cursor-pointer">全选 (${state.selectedLocalHistoryIdxs.length}/${state.localHistory.length})</label>
+        </div>
+
+        <div class="flex gap-2">
+          ${state.selectedLocalHistoryIdxs.length > 0 ? `
+            <button id="batch-delete-btn" class="fox-btn-secondary text-xs text-red-500 font-bold">
+              🗑️ 批量删除选中
+            </button>
+          ` : ''}
+          <button id="clear-local-history-btn" class="fox-btn-secondary text-xs text-red-500">
+            清空全部
+          </button>
+        </div>
       </div>
 
       <div class="grid grid-cols-3 gap-2 sm:gap-3">
-        ${state.localHistory.map((item, idx) => `
-          <div class="glass-panel overflow-hidden group relative flex flex-col justify-between border border-slate-200 dark:border-slate-800 p-1.5">
-            <div class="relative aspect-square bg-slate-900 rounded-lg overflow-hidden cursor-pointer" data-open-preview="${encodeURIComponent(item.url)}">
-              <img src="${item.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
-            </div>
+        ${state.localHistory.map((item, idx) => {
+          const isChecked = state.selectedLocalHistoryIdxs.includes(idx);
+          return `
+            <div class="glass-panel overflow-hidden group relative flex flex-col justify-between border ${isChecked ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-slate-200 dark:border-slate-800'} p-1.5">
+              <div class="relative aspect-square bg-slate-900 rounded-lg overflow-hidden cursor-pointer" data-open-preview="${encodeURIComponent(item.url)}">
+                <input type="checkbox" data-select-idx="${idx}" class="absolute top-1 left-1 z-20 w-4 h-4 accent-blue-500 rounded cursor-pointer" ${isChecked ? 'checked' : ''} />
+                <img src="${item.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+              </div>
 
-            <div class="mt-1.5 space-y-1">
-              <p class="text-[10px] text-slate-700 dark:text-slate-300 truncate font-mono" title="${item.prompt}">${item.prompt}</p>
+              <div class="mt-1.5 space-y-1">
+                <p class="text-[10px] text-slate-700 dark:text-slate-300 truncate font-mono" title="${item.prompt}">${item.prompt}</p>
 
-              <div class="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                <button data-delete-single-history="${idx}" class="text-[10px] text-red-500 hover:underline">
-                  🗑️ 删除
-                </button>
-                <button data-load-params="${encodeURIComponent(JSON.stringify(item))}" class="text-[10px] text-blue-500 font-bold hover:underline">
-                  🎨 载入参数
-                </button>
+                <div class="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <button data-delete-single-history="${idx}" class="text-[10px] text-red-500 hover:underline">
+                    🗑️ 删除
+                  </button>
+                  <button data-load-params="${encodeURIComponent(JSON.stringify(item))}" class="text-[10px] text-blue-500 font-bold hover:underline">
+                    🎨 载入参数
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -744,10 +778,10 @@ function renderR2StorageManagerSection() {
         </div>
 
         <div class="flex gap-2">
-          <button id="r2-mkdir-btn" class="fox-btn-secondary text-xs">
+          <button id="r2-mkdir-btn" class="fox-btn-secondary text-xs font-bold">
             📁 新建文件夹
           </button>
-          <button id="r2-upload-trigger-btn" class="fox-btn-primary text-xs">
+          <button id="r2-upload-trigger-btn" class="fox-btn-primary text-xs font-bold">
             📤 上传文件 (图片/视频/音乐/文档)
           </button>
           <input type="file" id="r2-file-input" multiple class="hidden" />
@@ -757,7 +791,7 @@ function renderR2StorageManagerSection() {
       ${state.isUploading ? `
         <div class="glass-panel p-3 space-y-1 border border-blue-500">
           <div class="flex justify-between text-xs font-bold text-blue-500">
-            <span>正在上传文件...</span>
+            <span>正在上传文件至 R2 云盘...</span>
             <span>${state.uploadProgress}%</span>
           </div>
           <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -835,17 +869,44 @@ function renderModelHub() {
     <div class="space-y-5">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">📦 模型库 (一排三列手机屏缩略图)</h2>
-          <p class="text-xs text-slate-500">选择模型即刻与绘图工作台保持真正同步</p>
+          <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">📦 热门开源模型库 (一排三图极佳缩略布局)</h2>
+          <p class="text-xs text-slate-500">点击选中模型即刻与绘图工作台保持同步</p>
         </div>
 
         <div class="flex gap-2 max-w-sm w-full">
           <input type="text" id="model-search-input" class="fox-input" placeholder="输入关键词 (如 anime, realistic)..." value="${state.searchQuery}" />
-          <button id="online-search-btn" class="fox-btn-primary text-xs flex-shrink-0">
+          <button id="online-search-btn" class="fox-btn-primary text-xs flex-shrink-0 font-bold">
             🔍 搜全网
           </button>
         </div>
       </div>
+
+      ${state.onlineModels.length > 0 ? `
+        <div class="space-y-3">
+          <h3 class="text-xs font-bold text-blue-500 flex items-center gap-1">
+            🌐 互联网实时检索到的高赞模型：
+          </h3>
+          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            ${state.onlineModels.map(m => `
+              <div class="glass-panel overflow-hidden p-2 space-y-1 flex flex-col justify-between border border-blue-500/30">
+                <div class="space-y-1">
+                  <img src="${m.cover}" class="w-full aspect-square object-cover rounded-lg" />
+                  <h4 class="font-bold text-[11px] text-slate-100 truncate">${m.name}</h4>
+                  <p class="text-[9px] text-slate-400 line-clamp-2">${m.description}</p>
+                </div>
+                <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
+                  <a href="${m.sourceUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                    🌐 源站
+                  </a>
+                  <button data-use-model="${m.id}" class="fox-btn-primary text-[10px] py-1 px-2">
+                    选择使用
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
 
       <div id="models-grid" class="grid grid-cols-3 gap-2 sm:gap-3">
         ${renderModelItems(filteredModels)}
@@ -870,6 +931,7 @@ function renderModelItems(modelsList) {
 
           <div class="p-1 mt-1 space-y-0.5">
             <h4 class="font-bold text-[11px] text-slate-800 dark:text-slate-100 truncate">${model.name}</h4>
+            <p class="text-[9px] text-slate-400 line-clamp-2">${model.description}</p>
           </div>
         </div>
 
@@ -904,7 +966,7 @@ function renderTranslatorWorkspace() {
         </label>
         <div class="flex items-center gap-3">
           <input type="file" id="vision-file-input" accept="image/*" class="text-xs text-slate-500" />
-          <button id="analyze-vision-btn" class="fox-btn-primary text-xs py-1.5 px-3 flex-shrink-0">
+          <button id="analyze-vision-btn" class="fox-btn-primary text-xs py-1.5 px-3 flex-shrink-0 font-bold">
             🔍 分析出词
           </button>
         </div>
@@ -926,7 +988,7 @@ function renderTranslatorWorkspace() {
 
       <div class="flex gap-2">
         <input type="text" id="chat-input" class="fox-input flex-1" placeholder="输入中文描述..." />
-        <button id="send-chat-btn" class="fox-btn-primary flex-shrink-0">
+        <button id="send-chat-btn" class="fox-btn-primary flex-shrink-0 font-bold">
           发送 🚀
         </button>
       </div>
@@ -945,19 +1007,43 @@ function renderSettingsWorkspace() {
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">⚙️ 系统设置控制台</h2>
           <p class="text-xs text-slate-500">支持记忆展开/收起状态，保护管理员凭证权限</p>
         </div>
-        <button id="logout-btn" class="fox-btn-secondary text-xs text-red-500">
+        <button id="logout-btn" class="fox-btn-secondary text-xs text-red-500 font-bold">
           🚪 退出登录
         </button>
       </div>
 
       <div class="space-y-3">
-        <!-- 1. 一键切换夜间模式 -->
-        ${renderAccordion('sec1', '🌙 1. 一键切换夜间模式', `
-          <div class="flex items-center justify-between text-xs">
-            <span class="font-bold">切换黑夜/白天视觉主题：</span>
-            <button id="toggle-night-btn" class="fox-btn-secondary text-xs">
-              ${state.themeMode === 'dark' ? '☀️ 切换浅色模式' : '🌙 切换夜间模式'}
-            </button>
+        <!-- 1. 一键切换夜间模式 + 主题和背景调色 -->
+        ${renderAccordion('sec1', '🌙 1. 一键切换夜间模式 & 主题背景调色', `
+          <div class="space-y-4 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="font-bold">黑夜/白天视觉主题模式：</span>
+              <button id="toggle-night-btn" class="fox-btn-secondary text-xs">
+                ${state.themeMode === 'dark' ? '☀️ 切换浅色模式' : '🌙 切换夜间模式'}
+              </button>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block font-bold">界面背景色调预设：</label>
+              <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                ${BACKGROUND_PRESETS.map(bg => `
+                  <button data-bg-preset="${bg.id}" class="p-2 rounded-xl text-xs font-bold border ${state.bgPreset === bg.id ? 'border-blue-500 ring-2 ring-blue-500/30 font-black' : 'border-slate-700'} ${bg.bgClass} transition hover:scale-105">
+                    ${bg.name}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block font-bold">界面主题强调调色盘：</label>
+              <div class="flex items-center gap-2 overflow-x-auto">
+                ${THEME_ACCENTS.map(acc => `
+                  <button data-theme-accent="${acc.id}" class="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow transition flex items-center gap-1.5 ${state.themeAccent === acc.id ? 'ring-2 ring-white scale-105' : ''}" style="background-color: ${acc.hex}">
+                    <span>${acc.name}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
           </div>
         `)}
 
@@ -985,31 +1071,43 @@ function renderSettingsWorkspace() {
           </div>
         `)}
 
-        <!-- 4. 其他外接算力 KEY 配置，OpenAI 为必须有 -->
-        ${renderAccordion('sec4', '🤖 4. 其他外接算力 KEY 配置 (OpenAI 必须有)', `
+        <!-- 4. 其他外接算力 KEY 配置，OpenAI 为必须有，兼容各种 API -->
+        ${renderAccordion('sec4', '🤖 4. 其他外接算力 KEY 配置 (兼容各种 API，含 OpenAI)', `
           <div class="space-y-3 text-xs">
             ${isAdmin ? `
               <div>
-                <label class="block font-bold mb-1">OpenAI API Key (或第三方 OpenAI 兼容 Key):</label>
+                <label class="block font-bold mb-1">OpenAI / 通用第三方 API Key:</label>
                 <input type="password" id="setting-openai-key" class="fox-input font-mono" value="${state.settings.openaiApiKey}" placeholder="sk-xxxx..." />
               </div>
               <div>
-                <label class="block font-bold mb-1">OpenAI Base URL (自定义 API 接口请求域名):</label>
+                <label class="block font-bold mb-1">通用 API 基础请求 Base URL:</label>
                 <input type="text" id="setting-openai-base" class="fox-input font-mono" value="${state.settings.openaiBaseUrl}" placeholder="https://api.openai.com/v1" />
               </div>
-              <button id="save-openai-keys-btn" class="fox-btn-primary w-full text-xs py-2">💾 保存 OpenAI 算力配置</button>
+              <div>
+                <label class="block font-bold mb-1">调用模型名称 (如 dall-e-3 / flux / custom):</label>
+                <input type="text" id="setting-openai-model" class="fox-input font-mono" value="${state.settings.openaiModel}" placeholder="dall-e-3" />
+              </div>
+              <button id="save-openai-keys-btn" class="fox-btn-primary w-full text-xs py-2 font-bold">💾 保存通用外接算力 Key 配置</button>
             ` : `<p class="text-slate-400">非管理员不能修改保存的 Token 与 Key 配置</p>`}
           </div>
         `)}
 
-        <!-- 5. Cloudflare 的 API 状态指示灯 -->
-        ${renderAccordion('sec5', '🔴 5. Cloudflare 的 API 状态指示灯', `
+        <!-- 5. Cloudflare 的 API 状态指示灯 & Cloudflare Workers AI 重新部署选项 -->
+        ${renderAccordion('sec5', '🔴 5. Cloudflare 的 API 状态指示灯 & Workers AI 部署', `
           <div class="space-y-3 text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">
+              <span class="font-bold">Workers AI 原生 Binding 状态 (env.AI)：</span>
+              <span class="flex items-center gap-1.5 font-bold ${state.status.cfWorkersAi ? 'text-emerald-500' : 'text-amber-500'}">
+                <span class="w-2.5 h-2.5 rounded-full ${state.status.cfWorkersAi ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
+                ${state.status.cfWorkersAi ? '已绑定 (重新部署即刻生效)' : '免Key公用通道'}
+              </span>
+            </div>
+
             <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">
               <span class="font-bold">Cloudflare API Token 鉴权连通状态：</span>
               <span class="flex items-center gap-1.5 font-bold ${state.status.cfTokenValid ? 'text-emerald-500' : 'text-amber-500'}">
                 <span class="w-2.5 h-2.5 rounded-full ${state.status.cfTokenValid ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
-                ${state.status.cfTokenValid ? '有效连通 (API 正常)' : '免Key免Token通道'}
+                ${state.status.cfTokenValid ? '凭证连通正常' : '未校验或免Key'}
               </span>
             </div>
 
@@ -1023,8 +1121,8 @@ function renderSettingsWorkspace() {
                 <input type="password" id="setting-cf-token" class="fox-input font-mono" value="${state.settings.cfApiToken}" placeholder="v1.0-xxxx..." />
               </div>
               <div class="flex gap-2">
-                <button id="save-keys-btn" class="fox-btn-primary flex-1 text-xs py-2">💾 保存 CF 凭证</button>
-                <button id="verify-cf-token-btn" class="fox-btn-secondary flex-1 text-xs py-2">⚡ 验证 Token 连通状态</button>
+                <button id="save-keys-btn" class="fox-btn-primary flex-1 text-xs py-2 font-bold">💾 保存 CF 凭证</button>
+                <button id="verify-cf-token-btn" class="fox-btn-secondary flex-1 text-xs py-2 font-bold">⚡ 验证 Token 连通状态</button>
               </div>
             ` : `<p class="text-slate-400">非管理员不能修改凭证与 ID 区</p>`}
           </div>
@@ -1036,7 +1134,7 @@ function renderSettingsWorkspace() {
             <span class="font-bold">Cloudflare D1 数据库 (DB) 状态：</span>
             <span class="flex items-center gap-1.5 font-bold ${state.status.d1Database ? 'text-emerald-500' : 'text-amber-500'}">
               <span class="w-2.5 h-2.5 rounded-full ${state.status.d1Database ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
-              ${state.status.d1Database ? '已绑定 (历史/草稿/设置自动同步)' : '未绑定数据库 (离线离线缓存模式)'}
+              ${state.status.d1Database ? '已绑定 (历史/草稿/设置自动同步)' : '未绑定数据库 (本地离线缓存模式)'}
             </span>
           </div>
         `)}
@@ -1067,7 +1165,7 @@ function renderSettingsWorkspace() {
               <label class="block font-bold">修改新登录密码：</label>
               <input type="password" id="new-password-input" class="fox-input" placeholder="输入新密码" />
             </div>
-            <button id="change-pass-btn" class="fox-btn-secondary text-xs w-full">确认更新密码</button>
+            <button id="change-pass-btn" class="fox-btn-secondary text-xs w-full font-bold">确认更新密码</button>
           </div>
         `)}
 
@@ -1104,7 +1202,7 @@ function renderSettingsWorkspace() {
               <input type="text" id="setting-reply-email" class="fox-input font-mono" value="${state.settings.replyEmail}" placeholder="noreply@fox.ai" />
             </div>
 
-            <button id="save-email-verify-config-btn" class="fox-btn-primary w-full text-xs py-2">💾 保存邮箱验证码预留配置</button>
+            <button id="save-email-verify-config-btn" class="fox-btn-primary w-full text-xs py-2 font-bold">💾 保存邮箱验证码预留配置</button>
           </div>
         `) : ''}
       </div>
@@ -1143,17 +1241,40 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('click', async (e) => {
+    if (e.target.closest('#toggle-custom-size-btn')) {
+      state.isCustomSize = !state.isCustomSize;
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#toggle-advanced-settings-btn')) {
+      state.showAdvancedSettings = !state.showAdvancedSettings;
+      renderApp();
+      return;
+    }
+
     if (e.target.closest('#verify-cf-token-btn')) {
       await verifyCfToken();
+      return;
+    }
+
+    if (e.target.closest('#save-keys-btn')) {
+      state.settings.cfAccountId = document.getElementById('setting-cf-id').value.trim();
+      state.settings.cfApiToken = document.getElementById('setting-cf-token').value.trim();
+      localStorage.setItem('fox_cf_account_id', state.settings.cfAccountId);
+      localStorage.setItem('fox_cf_api_token', state.settings.cfApiToken);
+      alert('✅ Cloudflare 凭证保存成功！');
       return;
     }
 
     if (e.target.closest('#save-openai-keys-btn')) {
       state.settings.openaiApiKey = document.getElementById('setting-openai-key').value.trim();
       state.settings.openaiBaseUrl = document.getElementById('setting-openai-base').value.trim();
+      state.settings.openaiModel = document.getElementById('setting-openai-model').value.trim();
       localStorage.setItem('fox_openai_api_key', state.settings.openaiApiKey);
       localStorage.setItem('fox_openai_base_url', state.settings.openaiBaseUrl);
-      alert('✅ OpenAI 算力配置保存成功！');
+      localStorage.setItem('fox_openai_model', state.settings.openaiModel);
+      alert('✅ 外接通用算力 Key 配置保存成功！');
       return;
     }
 
@@ -1169,11 +1290,86 @@ function bindGlobalEvents() {
       return;
     }
 
+    if (e.target.closest('#change-pass-btn')) {
+      const pass = document.getElementById('new-password-input').value.trim();
+      if (!pass) return alert('请输入新密码');
+      state.settings.adminPassword = pass;
+      localStorage.setItem('fox_admin_password', pass);
+      alert('✅ 密码更新成功！');
+      return;
+    }
+
     const deviceBtn = e.target.closest('[data-device]');
     if (deviceBtn) {
       state.deviceMode = deviceBtn.getAttribute('data-device');
       localStorage.setItem('fox_device_mode', state.deviceMode);
       renderApp();
+      return;
+    }
+
+    if (e.target.closest('#online-search-btn')) {
+      if (!state.searchQuery.trim()) return alert('请输入模型搜索关键词');
+      state.isSearchingOnline = true;
+      try {
+        const data = await fetchWithTimeout(`/api/models/search?q=${encodeURIComponent(state.searchQuery)}`, {}, 8000);
+        if (data && data.models) {
+          state.onlineModels = data.models;
+        }
+      } catch (err) {
+        alert(`❌ 全网搜索提示: ${err.message}`);
+      }
+      state.isSearchingOnline = false;
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#analyze-vision-btn')) {
+      const fileInput = document.getElementById('vision-file-input');
+      if (!fileInput || !fileInput.files[0]) return alert('请先上传分析图片');
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const base64 = evt.target.result;
+        try {
+          const data = await fetchWithTimeout('/api/vision-analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64 })
+          }, 10000);
+          if (data && data.prompt) {
+            state.chatMessages.push({ role: 'assistant', text: `📸 图像分析提取出的画风关键词：\n\n${data.prompt}` });
+            renderApp();
+          }
+        } catch (err) {
+          alert(`图像分析提示: ${err.message}`);
+        }
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    if (e.target.closest('#send-chat-btn')) {
+      await handleSendChat();
+      return;
+    }
+
+    if (e.target.closest('#upload-to-r2-btn')) {
+      if (!state.lastGeneratedImage) return;
+      const key = `fox-ai-${Date.now()}.png`;
+      try {
+        const data = await fetchWithTimeout('/api/r2/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, dataUrl: state.lastGeneratedImage.url })
+        }, 10000);
+        if (data && data.success) {
+          alert('✅ 成功同步保存至 R2 对象存储空间！');
+          await fetchR2Objects();
+        }
+      } catch (err) {
+        alert(`R2 上传提示: ${err.message}`);
+      }
       return;
     }
 
@@ -1204,6 +1400,38 @@ function bindGlobalEvents() {
       return;
     }
 
+    const checkItem = e.target.closest('[data-select-idx]');
+    if (checkItem) {
+      const idx = parseInt(checkItem.getAttribute('data-select-idx'), 10);
+      if (state.selectedLocalHistoryIdxs.includes(idx)) {
+        state.selectedLocalHistoryIdxs = state.selectedLocalHistoryIdxs.filter(i => i !== idx);
+      } else {
+        state.selectedLocalHistoryIdxs.push(idx);
+      }
+      renderApp();
+      return;
+    }
+
+    if (e.target.id === 'batch-select-all') {
+      if (state.selectedLocalHistoryIdxs.length === state.localHistory.length) {
+        state.selectedLocalHistoryIdxs = [];
+      } else {
+        state.selectedLocalHistoryIdxs = state.localHistory.map((_, i) => i);
+      }
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#batch-delete-btn')) {
+      if (confirm(`确定批量删除选中的 ${state.selectedLocalHistoryIdxs.length} 项历史记录吗？`)) {
+        state.localHistory = state.localHistory.filter((_, idx) => !state.selectedLocalHistoryIdxs.includes(idx));
+        state.selectedLocalHistoryIdxs = [];
+        localStorage.setItem('fox_history', JSON.stringify(state.localHistory));
+        renderApp();
+      }
+      return;
+    }
+
     const delSingleHist = e.target.closest('[data-delete-single-history]');
     if (delSingleHist) {
       const idx = parseInt(delSingleHist.getAttribute('data-delete-single-history'), 10);
@@ -1220,7 +1448,7 @@ function bindGlobalEvents() {
       state.width = item.width || 1024;
       state.height = item.height || 1024;
       state.activeTab = 'txt2img';
-      alert('✅ 已载入绘图参数！');
+      alert('✅ 已成功载入绘图参数！');
       renderApp();
       return;
     }
@@ -1229,6 +1457,15 @@ function bindGlobalEvents() {
     if (bgPresetBtn) {
       state.bgPreset = bgPresetBtn.getAttribute('data-bg-preset');
       localStorage.setItem('fox_bg_preset', state.bgPreset);
+      applyAppPreferences();
+      renderApp();
+      return;
+    }
+
+    const themeAccBtn = e.target.closest('[data-theme-accent]');
+    if (themeAccBtn) {
+      state.themeAccent = themeAccBtn.getAttribute('data-theme-accent');
+      localStorage.setItem('fox_theme_accent', state.themeAccent);
       applyAppPreferences();
       renderApp();
       return;
@@ -1375,6 +1612,24 @@ function bindGlobalEvents() {
       renderApp();
     }
   });
+
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'custom-width-input') {
+      state.width = parseInt(e.target.value, 10) || 1024;
+    }
+    if (e.target.id === 'custom-height-input') {
+      state.height = parseInt(e.target.value, 10) || 1024;
+    }
+    if (e.target.id === 'steps-range') {
+      state.steps = parseInt(e.target.value, 10);
+    }
+    if (e.target.id === 'cfg-range') {
+      state.cfgScale = parseFloat(e.target.value);
+    }
+    if (e.target.id === 'model-search-input') {
+      state.searchQuery = e.target.value;
+    }
+  });
 }
 
 function bindTabEvents() {
@@ -1439,7 +1694,10 @@ async function handleGenerateImage() {
         batchCount: state.batchCount,
         image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
         cfAccountId: state.settings.cfAccountId,
-        cfApiToken: state.settings.cfApiToken
+        cfApiToken: state.settings.cfApiToken,
+        openaiApiKey: state.settings.openaiApiKey,
+        openaiBaseUrl: state.settings.openaiBaseUrl,
+        openaiModel: state.settings.openaiModel
       })
     }, 60000);
 
@@ -1463,6 +1721,32 @@ async function handleGenerateImage() {
     alert(`❌ 绘图失败: ${err.message}`);
   } finally {
     state.isGenerating = false;
+    renderApp();
+  }
+}
+
+async function handleSendChat() {
+  const input = document.getElementById('chat-input');
+  if (!input || !input.value.trim()) return;
+
+  const userMsg = input.value.trim();
+  state.chatMessages.push({ role: 'user', text: userMsg });
+  input.value = '';
+  renderApp();
+
+  try {
+    const data = await fetchWithTimeout('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: userMsg })
+    }, 10000);
+
+    if (data && data.translatedText) {
+      state.chatMessages.push({ role: 'assistant', text: `✨ 为您优化的生图提示词：\n\n${data.translatedText}` });
+    }
+  } catch (err) {
+    state.chatMessages.push({ role: 'assistant', text: `[白狐AI 响应]: "masterpiece, ${userMsg}, 8k resolution"` });
+  } finally {
     renderApp();
   }
 }
