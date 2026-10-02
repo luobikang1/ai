@@ -1742,30 +1742,46 @@ async function handleGenerateImage() {
 
   try {
     const styleObj = ART_STYLES.find(s => s.id === state.selectedStyle);
-    const finalPrompt = styleObj && styleObj.prompt ? `${state.prompt}, ${styleObj.prompt}` : state.prompt;
+    let finalPrompt = styleObj && styleObj.prompt ? `${state.prompt}, ${styleObj.prompt}` : state.prompt;
 
-    const data = await fetchWithTimeout('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        engine: state.settings.engineChoice,
-        model: state.selectedModel,
-        prompt: finalPrompt,
-        negativePrompt: state.negativePrompt,
-        width: state.width,
-        height: state.height,
-        steps: state.steps,
-        batchCount: state.batchCount,
-        image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
-        cfAccountId: state.settings.cfAccountId,
-        cfApiToken: state.settings.cfApiToken,
-        openaiApiKey: state.settings.openaiApiKey,
-        openaiBaseUrl: state.settings.openaiBaseUrl,
-        openaiModel: state.settings.openaiModel
-      })
-    }, 60000);
+    // Automatic quality boost for free compute engines to ensure high quality results
+    if (!finalPrompt.toLowerCase().includes('masterpiece')) {
+      finalPrompt = `${finalPrompt}, masterpiece, best quality, highly detailed, 8k resolution, cinematic lighting, sharp focus`;
+    }
 
-    const imgList = data.images && data.images.length > 0 ? data.images : [data.url || data.image];
+    let data = null;
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts && !data) {
+      attempts++;
+      try {
+        data = await fetchWithTimeout('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            engine: state.settings.engineChoice,
+            model: state.selectedModel,
+            prompt: finalPrompt,
+            negativePrompt: state.negativePrompt,
+            width: state.width,
+            height: state.height,
+            steps: state.steps,
+            batchCount: state.batchCount,
+            image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
+            cfAccountId: state.settings.cfAccountId,
+            cfApiToken: state.settings.cfApiToken,
+            openaiApiKey: state.settings.openaiApiKey,
+            openaiBaseUrl: state.settings.openaiBaseUrl,
+            openaiModel: state.settings.openaiModel
+          })
+        }, 60000);
+      } catch (retryErr) {
+        if (attempts >= maxAttempts) throw retryErr;
+      }
+    }
+
+    const imgList = data && data.images && data.images.length > 0 ? data.images : [data.url || data.image];
     state.lastGeneratedImages = imgList.map((url, idx) => ({
       url: url,
       prompt: state.prompt,

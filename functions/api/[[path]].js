@@ -1,6 +1,5 @@
 // Cloudflare Pages Functions API Router (/api/*)
 
-// Helper functions for flexible Cloudflare Pages Dashboard Binding Resolution
 function getD1Binding(env) {
   return env.DB || env.db || env.d1 || env.D1 || env.fox_ai_db || env.DATABASE || null;
 }
@@ -59,7 +58,7 @@ export async function onRequest(context) {
       const apiToken = body.apiToken || env.CF_API_TOKEN;
 
       if (!accountId || !apiToken) {
-        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，系统自动切至极速免费免 Key 算力通道' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，已自动启用全局极速免 Key FLUX 算力' }), { headers: jsonHeaders });
       }
 
       try {
@@ -354,7 +353,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, message: '文件成功从 R2 删除！' }), { headers: jsonHeaders });
     }
 
-    // High Efficiency Image Generation Endpoint
+    // High Quality Image Generation Pipeline & Failover
     if (url.pathname === '/api/generate') {
       if (request.method !== 'POST') {
         return new Response(JSON.stringify({ ok: false, error: 'Method Not Allowed' }), { status: 405, headers: jsonHeaders });
@@ -375,19 +374,23 @@ export async function onRequest(context) {
       const steps = parseInt(payload.steps, 10) || 4;
       const count = parseInt(payload.batchCount, 10) || 1;
 
-      const qualityBoost = 'masterpiece, highly detailed, 8k resolution, raw photo, sharp focus, cinematic lighting';
+      // Ultra High-Quality Prompt Enhancement Filter
+      const qualityBoost = 'masterpiece, best quality, highly detailed, 8k resolution, raw photo, ultra-sharp focus, professional lighting, octane render, photorealistic';
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
       const generatedImages = [];
 
       for (let i = 0; i < count; i++) {
-        const currentSeed = Math.floor(Math.random() * 1000000);
+        const currentSeed = Math.floor(Math.random() * 10000000);
         let currentUrl = null;
 
         // A. Universal OpenAI Compatible API
         if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
             const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+
             const oaiRes = await fetch(`${baseUrl}/images/generations`, {
               method: 'POST',
               headers: {
@@ -399,8 +402,11 @@ export async function onRequest(context) {
                 prompt: finalPrompt,
                 n: 1,
                 size: `${width}x${height}`
-              })
+              }),
+              signal: controller.signal
             });
+            clearTimeout(timeoutId);
+
             const oaiData = await oaiRes.json();
             if (oaiRes.ok && oaiData.data?.[0]?.url) {
               currentUrl = oaiData.data[0].url;
@@ -408,7 +414,7 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // B. Cloudflare Workers AI Binding
+        // B. Cloudflare Workers AI Native Binding
         if (!currentUrl && env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
           try {
             const aiInputs = { prompt: finalPrompt, num_steps: steps };
@@ -440,16 +446,31 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // D. Free Pollinations Universal Engine Fallback
+        // D. Ultra High-Fidelity Pollinations FLUX.1 Free Engine Route (Optimized Timeout & Retry)
         if (!currentUrl) {
           try {
-            const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${currentSeed}&nologo=true`;
-            const pollRes = await fetch(pollUrl);
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${currentSeed}&model=flux&enhance=true&nologo=true`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+            const pollRes = await fetch(pollUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
             if (pollRes.ok) {
               const pollBuf = await pollRes.arrayBuffer();
               currentUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
             }
-          } catch(e) {}
+          } catch(e) {
+            // Backup Secondary Pollinations Route
+            try {
+              const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${currentSeed}&nologo=true`;
+              const pollRes2 = await fetch(backupUrl);
+              if (pollRes2.ok) {
+                const pollBuf2 = await pollRes2.arrayBuffer();
+                currentUrl = `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
+              }
+            } catch(err2) {}
+          }
         }
 
         if (currentUrl) {
@@ -467,7 +488,7 @@ export async function onRequest(context) {
         }), { headers: jsonHeaders });
       }
 
-      return new Response(JSON.stringify({ ok: false, error: '算力通道通信失败，请重试' }), { status: 500, headers: jsonHeaders });
+      return new Response(JSON.stringify({ ok: false, error: '算力通道通信超时，请重试或检查网络状态' }), { status: 500, headers: jsonHeaders });
     }
 
     return new Response(JSON.stringify({ ok: false, error: 'API Endpoint Not Found' }), { status: 404, headers: jsonHeaders });
