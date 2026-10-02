@@ -84,8 +84,9 @@ const state = {
   uploadProgress: 0,
   isUploading: false,
 
-  authTab: 'login',
+  authTab: 'admin_login', // 'admin_login', 'user_login', 'user_register'
   adminPasswordOnlyInput: '',
+  loginEmailInput: '',
   registerEmail: '',
   registerUsername: '',
   registerPassword: '',
@@ -94,7 +95,7 @@ const state = {
 
   chatInput: '',
   chatMessages: [
-    { role: 'assistant', text: '你好！我是白狐AI智能助手。您可以输入简单的中文描述进行提示词润色，或上传图片提取画风关键词！' }
+    { role: 'assistant', text: '你好！我是白狐AI智能助手。您可以输入描述进行提示词润色，或上传图片提取风格关键词！' }
   ]
 };
 
@@ -288,7 +289,7 @@ function renderMediaPreviewModal() {
         ` : `
           <img src="${state.previewModalUrl}" class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl" />
         `}
-        <a href="${state.previewModalUrl}" download="fox-media-${Date.now()}" class="fox-btn-primary text-xs py-2 px-6">
+        <a href="${state.previewModalUrl}" download="fox-media-${Date.now()}" class="fox-btn-primary text-xs py-2 px-6 font-bold">
           📥 下载原文件
         </a>
       </div>
@@ -296,8 +297,11 @@ function renderMediaPreviewModal() {
   `;
 }
 
+// Separated Login and Auth Screen
 function renderWhiteFoxAuthScreen() {
-  const isRegister = state.authTab === 'register';
+  const isRegister = state.authTab === 'user_register';
+  const isUserLogin = state.authTab === 'user_login';
+  const isAdminLogin = state.authTab === 'admin_login';
 
   return `
     <div class="min-h-screen flex items-center justify-center p-4 bg-slate-50 text-slate-900 relative overflow-hidden">
@@ -314,14 +318,19 @@ function renderWhiteFoxAuthScreen() {
             <img src="${DEFAULT_AVATAR}" class="w-full h-full object-cover" />
           </div>
           <h2 class="text-2xl font-black fox-gradient-text tracking-tight">${t('appTitle')}</h2>
+          <p class="text-xs text-slate-500 font-medium">管理员密码直登 / 邮箱通用免密登录与注册</p>
         </div>
 
-        <div class="flex rounded-xl bg-slate-100 p-1 text-xs font-bold border border-slate-200">
-          <button id="tab-auth-login" class="flex-1 py-2 rounded-lg transition ${!isRegister ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
-            🔑 管理员直登 / 账号登录
+        <!-- Three Separate Auth Tabs -->
+        <div class="flex rounded-xl bg-slate-100 p-1 text-[11px] font-bold border border-slate-200 gap-0.5">
+          <button id="tab-auth-admin" class="flex-1 py-2 rounded-lg transition ${isAdminLogin ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
+            👑 管理员登录
+          </button>
+          <button id="tab-auth-login" class="flex-1 py-2 rounded-lg transition ${isUserLogin ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
+            🔑 邮箱登录
           </button>
           <button id="tab-auth-register" class="flex-1 py-2 rounded-lg transition ${isRegister ? 'bg-blue-500 text-white shadow' : 'text-slate-500 hover:text-slate-900'}">
-            📧 账号注册
+            📧 邮箱注册
           </button>
         </div>
 
@@ -332,38 +341,47 @@ function renderWhiteFoxAuthScreen() {
         ` : ''}
 
         <form id="auth-form" class="space-y-4">
-          ${isRegister ? `
+          ${isAdminLogin ? `
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">电子邮箱地址</label>
-              <input type="email" id="auth-email" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="user@example.com" value="${state.registerEmail}" required />
+              <label class="text-xs font-bold text-slate-700">管理员密码 (变量密码 ADMIN_PASSWORD):</label>
+              <input type="password" id="auth-admin-password" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="默认密码: fox123456" value="${state.adminPasswordOnlyInput}" required />
+            </div>
+            <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
+              👑 验证管理员密码进入系统
+            </button>
+          ` : isUserLogin ? `
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">登录邮箱地址:</label>
+              <input type="email" id="auth-login-email" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="user@example.com" value="${state.loginEmailInput}" required />
+            </div>
+            <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
+              🔑 邮箱一键登录工作台
+            </button>
+          ` : `
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-700">注册电子邮箱:</label>
+              <input type="email" id="auth-email" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="user@example.com" value="${state.registerEmail}" required />
             </div>
 
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">注册用户名</label>
+              <label class="text-xs font-bold text-slate-700">注册用户名:</label>
               <input type="text" id="auth-username" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置用户名" value="${state.registerUsername}" required />
-            </div>
-
-            <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">密码</label>
-              <input type="password" id="auth-password" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="设置密码" value="${state.registerPassword}" required />
             </div>
 
             ${state.settings.enableEmailVerify ? `
               <div class="space-y-1">
-                <label class="text-xs font-bold text-slate-700">邮箱验证码</label>
-                <input type="text" id="auth-verify-code" class="fox-input !bg-white !border-slate-200 text-slate-900" placeholder="输入接收到的 6 位验证码" value="${state.registerVerifyCode}" required />
+                <div class="flex justify-between items-center">
+                  <label class="text-xs font-bold text-slate-700">邮箱验证码 (管理员已开启验证):</label>
+                  <span class="text-[10px] text-blue-500">验证码可联系管理员获取</span>
+                </div>
+                <input type="text" id="auth-verify-code" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="输入 6 位验证码" value="${state.registerVerifyCode}" required />
               </div>
             ` : ''}
-          ` : `
-            <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-700">管理员密码 (默认 fox123456)</label>
-              <input type="password" id="auth-admin-password-only" class="fox-input !bg-white !border-slate-200 text-slate-900 font-mono" placeholder="默认密码: fox123456" value="${state.adminPasswordOnlyInput}" required />
-            </div>
-          `}
 
-          <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
-            ${isRegister ? '🚀 提交注册' : '🔑 验证密码进入工作台'}
-          </button>
+            <button type="submit" class="fox-btn-primary w-full py-3.5 text-sm font-bold shadow-lg shadow-blue-500/20">
+              🚀 提交注册并开始使用
+            </button>
+          `}
         </form>
       </div>
     </div>
@@ -377,32 +395,38 @@ function bindAuthEvents() {
     renderApp();
   });
 
+  document.getElementById('tab-auth-admin')?.addEventListener('click', () => {
+    state.authTab = 'admin_login';
+    state.authError = '';
+    renderApp();
+  });
+
   document.getElementById('tab-auth-login')?.addEventListener('click', () => {
-    state.authTab = 'login';
+    state.authTab = 'user_login';
     state.authError = '';
     renderApp();
   });
 
   document.getElementById('tab-auth-register')?.addEventListener('click', () => {
-    state.authTab = 'register';
+    state.authTab = 'user_register';
     state.authError = '';
     renderApp();
   });
 
   document.getElementById('auth-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (state.authTab === 'login') {
-      const password = document.getElementById('auth-admin-password-only')?.value.trim();
+    if (state.authTab === 'admin_login') {
+      const password = document.getElementById('auth-admin-password')?.value.trim();
 
       try {
-        const data = await fetchWithTimeout('/api/login', {
+        const data = await fetchWithTimeout('/api/admin-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: 'admin', password })
+          body: JSON.stringify({ password })
         }, 8000);
 
         if (data && data.ok) {
-          state.user = { username: 'admin', role: 'admin' };
+          state.user = data.user || { username: 'admin', role: 'admin' };
           localStorage.setItem('fox_user', JSON.stringify(state.user));
           state.authError = '';
           renderApp();
@@ -416,28 +440,56 @@ function bindAuthEvents() {
           renderApp();
           return;
         }
-        state.authError = err.message || '管理员密码校验失败';
+        state.authError = err.message || '管理员变量密码不匹配';
+        renderApp();
+      }
+    } else if (state.authTab === 'user_login') {
+      const email = document.getElementById('auth-login-email')?.value.trim();
+
+      try {
+        const data = await fetchWithTimeout('/api/user-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        }, 8000);
+
+        if (data && data.ok) {
+          state.user = data.user;
+          localStorage.setItem('fox_user', JSON.stringify(state.user));
+          state.authError = '';
+          renderApp();
+          return;
+        }
+      } catch (err) {
+        state.authError = err.message || '邮箱登录失败，请先注册';
         renderApp();
       }
     } else {
       const email = document.getElementById('auth-email').value.trim();
       const username = document.getElementById('auth-username').value.trim();
-      const password = document.getElementById('auth-password').value.trim();
       const verifyCode = document.getElementById('auth-verify-code')?.value.trim();
 
       try {
-        await fetchWithTimeout('/api/register', {
+        const data = await fetchWithTimeout('/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, username, password, verifyCode })
+          body: JSON.stringify({
+            email,
+            username,
+            verifyCode,
+            enableEmailVerify: state.settings.enableEmailVerify,
+            systemVerifyCode: state.settings.systemVerifyCode
+          })
         }, 8000);
 
-        state.user = { username, email, role: 'user' };
-        localStorage.setItem('fox_user', JSON.stringify(state.user));
-        state.authError = '';
-        renderApp();
+        if (data && data.ok) {
+          state.user = data.user;
+          localStorage.setItem('fox_user', JSON.stringify(state.user));
+          state.authError = '';
+          renderApp();
+        }
       } catch (err) {
-        state.authError = err.message || '注册请求失败';
+        state.authError = err.message || '邮箱注册失败';
         renderApp();
       }
     }
@@ -996,7 +1048,7 @@ function renderTranslatorWorkspace() {
   `;
 }
 
-// Settings Workspace - Strictly Ordered Accordion Sections
+// Settings Workspace - Accessible by ALL logged in users, with Admin-Protected Panels
 function renderSettingsWorkspace() {
   const isAdmin = state.user && state.user.role === 'admin';
 
@@ -1005,7 +1057,7 @@ function renderSettingsWorkspace() {
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100">⚙️ 系统设置控制台</h2>
-          <p class="text-xs text-slate-500">支持记忆展开/收起状态，保护管理员凭证权限</p>
+          <p class="text-xs text-slate-500">已成功登录账号: <b>${state.user.username}</b> (${isAdmin ? '管理员' : '普通用户'})</p>
         </div>
         <button id="logout-btn" class="fox-btn-secondary text-xs text-red-500 font-bold">
           🚪 退出登录
@@ -1071,7 +1123,7 @@ function renderSettingsWorkspace() {
           </div>
         `)}
 
-        <!-- 4. 其他外接算力 KEY 配置，OpenAI 为必须有，兼容各种 API -->
+        <!-- 4. 其他外接算力 KEY 配置 -->
         ${renderAccordion('sec4', '🤖 4. 其他外接算力 KEY 配置 (兼容各种 API，含 OpenAI)', `
           <div class="space-y-3 text-xs">
             ${isAdmin ? `
@@ -1092,7 +1144,7 @@ function renderSettingsWorkspace() {
           </div>
         `)}
 
-        <!-- 5. Cloudflare 的 API 状态指示灯 & Cloudflare Workers AI 重新部署选项 -->
+        <!-- 5. Cloudflare 的 API 状态指示灯 & Workers AI 部署 -->
         ${renderAccordion('sec5', '🔴 5. Cloudflare 的 API 状态指示灯 & Workers AI 部署', `
           <div class="space-y-3 text-xs">
             <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900">

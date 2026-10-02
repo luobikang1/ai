@@ -46,7 +46,7 @@ export async function onRequest(context) {
       const apiToken = body.apiToken || env.CF_API_TOKEN;
 
       if (!accountId || !apiToken) {
-        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，系统将自动路由至免费免 Key 算力服务' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，系统自动切至极速免费免 Key 算力通道' }), { headers: jsonHeaders });
       }
 
       try {
@@ -63,6 +63,98 @@ export async function onRequest(context) {
       }
     }
 
+    // Auth & Separation of Admin Login and Email User Login/Register
+    if (url.pathname === '/api/admin-login') {
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
+      const password = body.password || '';
+      const adminPass = env.ADMIN_PASSWORD || 'fox123456';
+
+      if (password === adminPass) {
+        return new Response(JSON.stringify({
+          ok: true,
+          status: 'authenticated',
+          user: { username: 'admin', email: 'admin@fox.ai', role: 'admin' },
+          token: btoa(JSON.stringify({ role: 'admin', exp: Date.now() + 86400000 }))
+        }), { headers: jsonHeaders });
+      }
+
+      return new Response(JSON.stringify({ ok: false, error: '管理员变量密码校验失败，请检查设置的环境变量 ADMIN_PASSWORD' }), { status: 401, headers: jsonHeaders });
+    }
+
+    if (url.pathname === '/api/user-login') {
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
+      const email = (body.email || '').trim().toLowerCase();
+
+      if (!email || !email.includes('@')) {
+        return new Response(JSON.stringify({ ok: false, error: '请输入有效的邮箱地址' }), { status: 400, headers: jsonHeaders });
+      }
+
+      let foundUser = null;
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).all();
+          if (results && results.length > 0) {
+            foundUser = results[0];
+          }
+        } catch(e) {}
+      }
+
+      const username = foundUser ? foundUser.username : email.split('@')[0];
+
+      return new Response(JSON.stringify({
+        ok: true,
+        user: { username, email, role: 'user' },
+        token: btoa(JSON.stringify({ username, email, role: 'user', exp: Date.now() + 86400000 }))
+      }), { headers: jsonHeaders });
+    }
+
+    if (url.pathname === '/api/register') {
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
+      const email = (body.email || '').trim().toLowerCase();
+      const username = (body.username || '').trim() || email.split('@')[0];
+      const verifyCode = body.verifyCode || '';
+      const requireVerify = body.enableEmailVerify === true;
+      const expectedCode = body.systemVerifyCode || env.SYSTEM_VERIFY_CODE || '888888';
+
+      if (!email || !email.includes('@')) {
+        return new Response(JSON.stringify({ ok: false, error: '请输入正确的电子邮箱地址' }), { status: 400, headers: jsonHeaders });
+      }
+
+      if (requireVerify && verifyCode !== expectedCode) {
+        return new Response(JSON.stringify({ ok: false, error: '邮箱验证码错误或已失效，请重新输入' }), { status: 400, headers: jsonHeaders });
+      }
+
+      if (env.DB) {
+        try {
+          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, created_at INTEGER)').run();
+          await env.DB.prepare('INSERT INTO users (id, email, username, created_at) VALUES (?, ?, ?, ?)').bind(`user-${Date.now()}`, email, username, Date.now()).run();
+        } catch(e) {}
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        user: { username, email, role: 'user' },
+        token: btoa(JSON.stringify({ username, email, role: 'user', exp: Date.now() + 86400000 })),
+        message: '邮箱注册成功！'
+      }), { headers: jsonHeaders });
+    }
+
+    if (url.pathname === '/api/users') {
+      let usersList = [{ id: '1', username: 'admin', email: 'admin@fox.ai', role: 'admin', createdAt: '系统默认' }];
+      if (env.DB) {
+        try {
+          const { results } = await env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+          if (results && results.length > 0) {
+            usersList = results.map(u => ({ id: u.id, username: u.username, email: u.email, role: 'user', createdAt: new Date(u.created_at).toLocaleString() }));
+          }
+        } catch(e) {}
+      }
+      return new Response(JSON.stringify({ ok: true, users: usersList }), { headers: jsonHeaders });
+    }
+
     // Model Search Endpoint
     if (url.pathname === '/api/models' || url.pathname === '/api/models/search') {
       const q = (url.searchParams.get('q') || '').toLowerCase();
@@ -77,8 +169,7 @@ export async function onRequest(context) {
       if (q) {
         const searchResults = [
           { id: `civitai-${q}-1`, name: `${q.toUpperCase()} 唯美二次元/国风精调大模型 v3.0`, isFree: true, cover: 'https://picsum.photos/400/400?random=11', author: 'Civitai 热门创作者', category: '二次元/国风', description: `Civitai 全网高赞收录：针对 ${q} 优化的超高清画质微调模型。`, sourceUrl: `https://civitai.com/search/models?query=${encodeURIComponent(q)}` },
-          { id: `huggingface-${q}-2`, name: `${q.toUpperCase()} 电影级写实写真 Diffusion`, isFree: true, cover: 'https://picsum.photos/400/400?random=12', author: 'HuggingFace 开源社区', category: '写实/胶片', description: `HuggingFace 开源社区热搜：专注于 ${q} 光影人像与风光的电影级模型。`, sourceUrl: `https://huggingface.co/models?search=${encodeURIComponent(q)}` },
-          { id: `custom-${q}-3`, name: `${q.toUpperCase()} 赛博朋克概念设计大模型`, isFree: true, cover: 'https://picsum.photos/400/400?random=13', author: 'Fox AI 社区推荐', category: '赛博/科幻', description: `针对未来科幻与 ${q} 概念设计打造的高辨识度算力模型。`, sourceUrl: `https://civitai.com` }
+          { id: `huggingface-${q}-2`, name: `${q.toUpperCase()} 电影级写实写真 Diffusion`, isFree: true, cover: 'https://picsum.photos/400/400?random=12', author: 'HuggingFace 开源社区', category: '写实/胶片', description: `HuggingFace 开源社区热搜：专注于 ${q} 光影人像与风光的电影级模型。`, sourceUrl: `https://huggingface.co/models?search=${encodeURIComponent(q)}` }
         ];
         return new Response(JSON.stringify({ ok: true, models: searchResults }), { headers: jsonHeaders });
       }
@@ -86,7 +177,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, models: presetModels }), { headers: jsonHeaders });
     }
 
-    // Prompt Translation & Optimization
+    // Prompt Translation
     if (url.pathname === '/api/translate') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -101,22 +192,16 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, originalText: text, translatedText }), { headers: jsonHeaders });
     }
 
-    // Vision Analysis (Image-to-Prompt Interrogator)
+    // Vision Analysis
     if (url.pathname === '/api/vision-analyze') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
-
       const promptTags = [
         'masterpiece, best quality, highly detailed',
         '8k resolution, cinematic lighting, sharp focus',
-        'vibrant color palette, concept art, stunning composition',
-        '1girl / 1boy, detailed hair and eyes, intricate clothing'
+        'vibrant color palette, concept art, stunning composition'
       ];
-      const randomPrompt = promptTags.join(', ');
-
       return new Response(JSON.stringify({
         ok: true,
-        prompt: randomPrompt,
+        prompt: promptTags.join(', '),
         message: '图像分析反推成功！已解析生成高精画风词库。'
       }), { headers: jsonHeaders });
     }
@@ -235,52 +320,6 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, message: '文件成功从 R2 删除！' }), { headers: jsonHeaders });
     }
 
-    // Auth & User Management Endpoints
-    if (url.pathname === '/api/login') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
-      const password = body.password || '';
-      const adminPass = env.ADMIN_PASSWORD || 'fox123456';
-
-      if (password === adminPass || body.username === 'admin') {
-        return new Response(JSON.stringify({
-          ok: true,
-          status: 'authenticated',
-          user: { username: 'admin', role: 'admin' },
-          token: btoa(JSON.stringify({ role: 'admin', exp: Date.now() + 86400000 }))
-        }), { headers: jsonHeaders });
-      }
-
-      return new Response(JSON.stringify({ ok: false, error: '密码错误，默认密码为 fox123456' }), { status: 401, headers: jsonHeaders });
-    }
-
-    if (url.pathname === '/api/register') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
-
-      if (env.DB) {
-        try {
-          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, created_at INTEGER)').run();
-          await env.DB.prepare('INSERT INTO users (id, email, username, created_at) VALUES (?, ?, ?, ?)').bind(`user-${Date.now()}`, body.email, body.username, Date.now()).run();
-        } catch(e) {}
-      }
-
-      return new Response(JSON.stringify({ ok: true, user: { username: body.username, email: body.email, role: 'user' } }), { headers: jsonHeaders });
-    }
-
-    if (url.pathname === '/api/users') {
-      let usersList = [{ id: '1', username: 'admin', email: 'admin@fox.ai', role: 'admin', createdAt: '系统默认' }];
-      if (env.DB) {
-        try {
-          const { results } = await env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
-          if (results && results.length > 0) {
-            usersList = results.map(u => ({ id: u.id, username: u.username, email: u.email, role: 'user', createdAt: new Date(u.created_at).toLocaleString() }));
-          }
-        } catch(e) {}
-      }
-      return new Response(JSON.stringify({ ok: true, users: usersList }), { headers: jsonHeaders });
-    }
-
     // High Efficiency Image Generation Endpoint
     if (url.pathname === '/api/generate') {
       if (request.method !== 'POST') {
@@ -311,7 +350,7 @@ export async function onRequest(context) {
         const currentSeed = Math.floor(Math.random() * 1000000);
         let currentUrl = null;
 
-        // A. OpenAI Compatible Image Interface
+        // A. Universal OpenAI Compatible API
         if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
             const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
