@@ -1,7 +1,20 @@
 // Cloudflare Pages Functions API Router (/api/*)
+
+// Helper functions for flexible Cloudflare Pages Dashboard Binding Resolution
+function getD1Binding(env) {
+  return env.DB || env.db || env.d1 || env.D1 || env.fox_ai_db || env.DATABASE || null;
+}
+
+function getR2Binding(env) {
+  return env.FOX_BUCKET || env.fox_bucket || env.R2 || env.r2 || env.fox_ai_storage || env.BUCKET || null;
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  const db = getD1Binding(env);
+  const bucket = getR2Binding(env);
 
   if (!url.pathname.startsWith('/api')) {
     if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
@@ -33,8 +46,8 @@ export async function onRequest(context) {
         status: 'online',
         hasAI: !!env.AI,
         hasToken: !!env.CF_API_TOKEN,
-        hasD1: !!env.DB,
-        hasR2: !!env.FOX_BUCKET
+        hasD1: !!db,
+        hasR2: !!bucket
       }), { headers: jsonHeaders });
     }
 
@@ -63,7 +76,7 @@ export async function onRequest(context) {
       }
     }
 
-    // Admin Login (ADMIN_PASSWORD env variable)
+    // Auth & Users
     if (url.pathname === '/api/admin-login' || url.pathname === '/api/login') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -82,7 +95,6 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: false, error: '管理员密码不匹配，默认初始密码为 fox123456' }), { status: 401, headers: jsonHeaders });
     }
 
-    // Regular User Login via Email & Registered Password
     if (url.pathname === '/api/user-login') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -98,10 +110,10 @@ export async function onRequest(context) {
       }
 
       let foundUser = null;
-      if (env.DB) {
+      if (db) {
         try {
-          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
-          const { results } = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).all();
+          await db.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
+          const { results } = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).all();
           if (results && results.length > 0) {
             foundUser = results[0];
           }
@@ -119,7 +131,6 @@ export async function onRequest(context) {
         }), { headers: jsonHeaders });
       }
 
-      // Offline/In-memory Account Login fallback
       const username = email.split('@')[0];
       return new Response(JSON.stringify({
         ok: true,
@@ -128,7 +139,6 @@ export async function onRequest(context) {
       }), { headers: jsonHeaders });
     }
 
-    // User Register Endpoint
     if (url.pathname === '/api/register') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -151,10 +161,10 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({ ok: false, error: '邮箱验证码错误，请检查输入' }), { status: 400, headers: jsonHeaders });
       }
 
-      if (env.DB) {
+      if (db) {
         try {
-          await env.DB.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
-          await env.DB.prepare('INSERT INTO users (id, email, username, password, created_at) VALUES (?, ?, ?, ?, ?)').bind(`user-${Date.now()}`, email, username, password, Date.now()).run();
+          await db.prepare('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT, username TEXT, password TEXT, created_at INTEGER)').run();
+          await db.prepare('INSERT INTO users (id, email, username, password, created_at) VALUES (?, ?, ?, ?, ?)').bind(`user-${Date.now()}`, email, username, password, Date.now()).run();
         } catch(e) {}
       }
 
@@ -166,12 +176,11 @@ export async function onRequest(context) {
       }), { headers: jsonHeaders });
     }
 
-    // Users List Endpoint (Admin only)
     if (url.pathname === '/api/users') {
       let usersList = [{ id: '1', username: 'admin', email: 'admin@fox.ai', role: 'admin', createdAt: '系统默认' }];
-      if (env.DB) {
+      if (db) {
         try {
-          const { results } = await env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+          const { results } = await db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
           if (results && results.length > 0) {
             usersList = results.map(u => ({ id: u.id, username: u.username, email: u.email, role: 'user', createdAt: new Date(u.created_at).toLocaleString() }));
           }
@@ -236,7 +245,7 @@ export async function onRequest(context) {
       let folder = url.searchParams.get('folder') || '';
       if (folder && !folder.endsWith('/')) folder += '/';
 
-      if (!env.FOX_BUCKET) {
+      if (!bucket) {
         return new Response(JSON.stringify({
           ok: true,
           bound: false,
@@ -253,7 +262,7 @@ export async function onRequest(context) {
       }
 
       try {
-        const listRes = await env.FOX_BUCKET.list({ prefix: folder, delimiter: '/' });
+        const listRes = await bucket.list({ prefix: folder, delimiter: '/' });
         const folders = (listRes.delimitedPrefixes || []).map(p => p);
         const objects = (listRes.objects || []).map(o => {
           const ext = o.key.split('.').pop().toLowerCase();
@@ -297,8 +306,8 @@ export async function onRequest(context) {
       if (!folderName) return new Response(JSON.stringify({ ok: false, error: '文件夹名称不能为空' }), { headers: jsonHeaders });
 
       const folderKey = folderName.endsWith('/') ? folderName : `${folderName}/`;
-      if (env.FOX_BUCKET) {
-        await env.FOX_BUCKET.put(`${folderKey}.keep`, new Uint8Array([0]));
+      if (bucket) {
+        await bucket.put(`${folderKey}.keep`, new Uint8Array([0]));
       }
 
       return new Response(JSON.stringify({ ok: true, folderKey, message: '新建文件夹成功！' }), { headers: jsonHeaders });
@@ -314,7 +323,7 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({ ok: false, error: '缺失文件名 key 或文件数据' }), { headers: jsonHeaders });
       }
 
-      if (env.FOX_BUCKET) {
+      if (bucket) {
         try {
           const base64Parts = dataUrl.split(',');
           const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
@@ -324,7 +333,7 @@ export async function onRequest(context) {
           for (let i = 0; i < len; i++) {
             bytes[i] = binaryStr.charCodeAt(i);
           }
-          await env.FOX_BUCKET.put(key, bytes);
+          await bucket.put(key, bytes);
         } catch(e) {}
       }
 
@@ -336,9 +345,9 @@ export async function onRequest(context) {
       try { body = await request.json(); } catch(e) {}
       const keys = Array.isArray(body.keys) ? body.keys : [body.key];
 
-      if (env.FOX_BUCKET) {
+      if (bucket) {
         for (const k of keys) {
-          if (k) await env.FOX_BUCKET.delete(k);
+          if (k) await bucket.delete(k);
         }
       }
 
