@@ -57,13 +57,13 @@
   @apply text-white shadow-sm;
 }
 
-/* Modern Floating Dock Bottom Nav Bar */
+/* Modern Compact Floating Dock Bottom Nav Bar - Prevent Edge Clipping */
 .bottom-dock-nav {
-  @apply fixed bottom-3 left-1/2 -translate-x-1/2 z-50 px-3 py-2 bg-slate-900/90 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-full shadow-2xl flex items-center gap-1 sm:gap-2 max-w-[95vw];
+  @apply fixed bottom-2 left-1/2 -translate-x-1/2 z-50 px-1.5 py-1.5 bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-full shadow-2xl flex items-center justify-between gap-0.5 sm:gap-1 max-w-[98vw] w-auto;
 }
 
 .bottom-nav-item {
-  @apply flex items-center gap-1 px-3 py-1.5 rounded-full transition-all text-slate-400 hover:text-white text-xs font-bold cursor-pointer whitespace-nowrap;
+  @apply flex flex-col items-center gap-0.5 px-1.5 sm:px-2.5 py-1 rounded-full transition-all text-slate-400 hover:text-white text-[10px] sm:text-xs font-bold cursor-pointer whitespace-nowrap flex-shrink-0;
 }
 
 .bottom-nav-item.active {
