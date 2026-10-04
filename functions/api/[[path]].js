@@ -381,8 +381,8 @@ export async function onRequest(context) {
       const controlNetMode = payload.controlNetMode || 'none';
       const controlNetWeight = payload.controlNetWeight || 0.8;
 
-      // Ultimate Quality Boost Enhancer with Hires Fix & ControlNet structure locks
-      let qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich color harmony, ample illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth';
+      // Ultimate Quality Boost Enhancer specifically tuned for free compute (FLUX.1 & SDXL)
+      let qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich vibrant color harmony, ample natural illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth, masterpiece details, trending on artstation';
 
       if (enableHiresFix) {
         qualityBoost += `, hires fix, ${hiresUpscaler} upscaled, denoising ${denoisingStrength}, ultra sharp clarity, clean lineart, noise free, pristine edges`;
