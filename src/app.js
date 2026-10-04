@@ -1,5 +1,5 @@
 import './style.css';
-import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS } from './config.js';
+import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS, HIRES_UPSCALERS, CONTROLNET_MODES } from './config.js';
 
 const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
 
@@ -60,6 +60,15 @@ const state = {
   sampler: 'Euler a',
   batchCount: 1,
   showAdvancedSettings: false,
+
+  // Hires. fix & ControlNet Configuration
+  enableHiresFix: false,
+  hiresUpscaler: '4x-UltraSharp',
+  denoisingStrength: 0.35,
+
+  controlNetMode: 'none',
+  controlNetWeight: 0.8,
+
   img2imgBase64: null,
   isGenerating: false,
   lastGeneratedImages: [],
@@ -653,7 +662,7 @@ function renderGenerationWorkspace() {
           `}
 
           ${state.showAdvancedSettings ? `
-            <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+            <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-4">
               <div class="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <label class="block font-bold mb-1">生成步数 (Steps): ${state.steps}</label>
@@ -662,6 +671,55 @@ function renderGenerationWorkspace() {
                 <div>
                   <label class="block font-bold mb-1">提示词引导 (CFG Scale): ${state.cfgScale}</label>
                   <input type="range" id="cfg-range" min="1" max="20" step="0.5" value="${state.cfgScale}" class="w-full accent-blue-500" />
+                </div>
+              </div>
+
+              <!-- Hires. fix 高清修复 (解决模糊、发噪、边缘脏) -->
+              <div class="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-2.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <label class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    ✨ 开启高清修复 (Hires. fix - 告别画质模糊与噪点)
+                  </label>
+                  <input type="checkbox" id="toggle-hires-fix-check" class="w-4 h-4 accent-blue-500 cursor-pointer" ${state.enableHiresFix ? 'checked' : ''} />
+                </div>
+
+                ${state.enableHiresFix ? `
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <span class="block text-[11px] font-semibold text-slate-500 mb-1">高清放大算法：</span>
+                      <select id="hires-upscaler-select" class="fox-input font-bold text-xs py-1.5">
+                        ${HIRES_UPSCALERS.map(u => `<option value="${u.id}" ${state.hiresUpscaler === u.id ? 'selected' : ''}>${u.name}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-500 mb-1">重绘幅度 (Denoising 0.3~0.4): ${state.denoisingStrength}</label>
+                      <input type="range" id="denoising-range" min="0.1" max="0.8" step="0.05" value="${state.denoisingStrength}" class="w-full accent-blue-500" />
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- ControlNet 结构锁 (锁定原图姿态与线条) -->
+              <div class="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-2.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <label class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    🎯 ControlNet 结构与姿态锁定 (二次元/动漫重绘防走形)
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <span class="block text-[11px] font-semibold text-slate-500 mb-1">结构控制类型：</span>
+                    <select id="controlnet-mode-select" class="fox-input font-bold text-xs py-1.5">
+                      ${CONTROLNET_MODES.map(c => `<option value="${c.id}" ${state.controlNetMode === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  ${state.controlNetMode !== 'none' ? `
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-500 mb-1">控制权重 (0.7~0.9 佳): ${state.controlNetWeight}</label>
+                      <input type="range" id="controlnet-weight-range" min="0.1" max="1.5" step="0.05" value="${state.controlNetWeight}" class="w-full accent-purple-500" />
+                    </div>
+                  ` : ''}
                 </div>
               </div>
             </div>
@@ -1677,6 +1735,21 @@ function bindGlobalEvents() {
     }
   });
 
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'toggle-hires-fix-check') {
+      state.enableHiresFix = e.target.checked;
+      renderApp();
+    }
+    if (e.target.id === 'hires-upscaler-select') {
+      state.hiresUpscaler = e.target.value;
+      renderApp();
+    }
+    if (e.target.id === 'controlnet-mode-select') {
+      state.controlNetMode = e.target.value;
+      renderApp();
+    }
+  });
+
   document.addEventListener('input', (e) => {
     if (e.target.id === 'custom-width-input') {
       state.width = parseInt(e.target.value, 10) || 1024;
@@ -1689,6 +1762,14 @@ function bindGlobalEvents() {
     }
     if (e.target.id === 'cfg-range') {
       state.cfgScale = parseFloat(e.target.value);
+    }
+    if (e.target.id === 'denoising-range') {
+      state.denoisingStrength = parseFloat(e.target.value);
+      renderApp();
+    }
+    if (e.target.id === 'controlnet-weight-range') {
+      state.controlNetWeight = parseFloat(e.target.value);
+      renderApp();
     }
     if (e.target.id === 'model-search-input') {
       state.searchQuery = e.target.value;
@@ -1764,6 +1845,11 @@ async function handleGenerateImage() {
         height: state.height,
         steps: state.steps,
         batchCount: state.batchCount,
+        enableHiresFix: state.enableHiresFix,
+        hiresUpscaler: state.hiresUpscaler,
+        denoisingStrength: state.denoisingStrength,
+        controlNetMode: state.controlNetMode,
+        controlNetWeight: state.controlNetWeight,
         image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
         cfAccountId: state.settings.cfAccountId,
         cfApiToken: state.settings.cfApiToken,

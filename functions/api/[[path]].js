@@ -375,8 +375,23 @@ export async function onRequest(context) {
       const steps = parseInt(payload.steps, 10) || 4;
       const count = Math.min(Math.max(parseInt(payload.batchCount, 10) || 1, 1), 4);
 
-      // Ultimate Quality Boost Enhancer
-      const qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich color harmony, ample illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth';
+      const enableHiresFix = payload.enableHiresFix === true;
+      const hiresUpscaler = payload.hiresUpscaler || '4x-UltraSharp';
+      const denoisingStrength = payload.denoisingStrength || 0.35;
+      const controlNetMode = payload.controlNetMode || 'none';
+      const controlNetWeight = payload.controlNetWeight || 0.8;
+
+      // Ultimate Quality Boost Enhancer with Hires Fix & ControlNet structure locks
+      let qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich color harmony, ample illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth';
+
+      if (enableHiresFix) {
+        qualityBoost += `, hires fix, ${hiresUpscaler} upscaled, denoising ${denoisingStrength}, ultra sharp clarity, clean lineart, noise free, pristine edges`;
+      }
+
+      if (controlNetMode && controlNetMode !== 'none') {
+        qualityBoost += `, controlnet ${controlNetMode} structure lock weight ${controlNetWeight}, exact posture preservation, crisp contours, perfect proportions`;
+      }
+
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
       // Single Image Fast Dispatched Generator with 25s AbortController Timeout

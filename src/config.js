@@ -63,18 +63,31 @@ export const BACKGROUND_PRESETS = [
 
 export const ART_STYLES = [
   { id: 'none', name: '预设风格', prompt: '' },
-  { id: 'anime', name: '日系动漫', prompt: 'masterpiece, best quality, anime style, digital art, highly detailed, vibrant color balance, golden ratio composition, perfect exposure, smooth shading, makoto shinkai aesthetic' },
-  { id: 'photorealistic', name: '写实人像', prompt: 'photorealistic digital painting, 8k resolution, raw photo, exquisite skin texture, ample illumination, dramatic volumetric lighting, ideal exposure, realistic depth of field, sharp focus' },
-  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk digital artwork, futuristic neon city, rich color saturation, dynamic composition, glowing atmosphere, ray tracing lighting, hyper detailed, 8k resolution' },
+  { id: 'anime', name: '日系动漫', prompt: 'anime style, clean lineart, sharp focus, high detail, cel shading, official art, masterpiece, best quality, vibrant color balance, golden ratio composition, perfect exposure' },
+  { id: 'photorealistic', name: '写实人像', prompt: 'photorealistic digital painting, 8k resolution, raw photo, exquisite skin texture, ample illumination, dramatic volumetric lighting, ideal exposure, realistic depth of field, sharp focus, masterpiece' },
+  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk digital artwork, futuristic neon city, rich color saturation, dynamic composition, glowing atmosphere, ray tracing lighting, hyper detailed, 8k resolution, masterpiece' },
   { id: 'chinese_poster', name: '国风海报', prompt: 'traditional chinese digital illustration, elegant golden ratio composition, refined ink wash aesthetic, balanced lighting, exquisite oriental details, artistic masterpiece, 8k' },
   { id: '3d_pixar', name: '3D皮克斯', prompt: '3d render masterpiece, pixar animation art style, vibrant pastel palette, soft ambient occlusion, ample studio illumination, ultra detailed textures, 8k resolution, octane render' },
   { id: 'oil_painting', name: '复古油画', prompt: 'fine art oil painting, rich impasto texture, vibrant color palette, dynamic brush strokes, expressive lighting and exposure, museum digital masterpiece' }
 ];
 
 export const NEGATIVE_PROMPT_PRESETS = [
-  'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
-  'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck',
-  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch'
+  'lowres, blurry, jpeg artifacts, extra fingers, deformed, watermark, text, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, signature, username',
+  'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck, lowres, blurry',
+  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch, lowres, blurry, jpeg artifacts'
+];
+
+export const HIRES_UPSCALERS = [
+  { id: '4x-UltraSharp', name: '4x-UltraSharp (高清精致首选)' },
+  { id: 'R-ESRGAN', name: 'R-ESRGAN (真实色彩复原)' },
+  { id: 'Latent', name: 'Latent (高动态潜空间放大)' }
+];
+
+export const CONTROLNET_MODES = [
+  { id: 'none', name: '不开启 ControlNet' },
+  { id: 'lineart', name: 'Lineart 线条轮廓提取 (二次元/插画推荐)' },
+  { id: 'canny', name: 'Canny 边缘检测 (硬核结构锁定)' },
+  { id: 'openpose', name: 'OpenPose 人体姿态控制 (解决肢体变形)' }
 ];
 
 export const THEME_ACCENTS = [
