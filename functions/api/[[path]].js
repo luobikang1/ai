@@ -210,7 +210,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, models: presetModels }), { headers: jsonHeaders });
     }
 
-    // Prompt Translation
+    // Prompt Translation & Artistic Enrichment
     if (url.pathname === '/api/translate') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -218,9 +218,11 @@ export async function onRequest(context) {
       if (!text) return new Response(JSON.stringify({ ok: false, error: '请输入有效的描述文本' }), { headers: jsonHeaders });
 
       const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+      const artisticEnhancements = 'masterpiece digital painting, fine art composition, vibrant color balance, volumetric illumination, ideal exposure, highly refined details, 8k resolution, sharp focus';
+
       const translatedText = hasChinese
-        ? `masterpiece, highly detailed, 8k resolution, cinematic lighting, ${text}`
-        : `${text}, masterpiece, highly detailed, 8k resolution, raw photo, sharp focus`;
+        ? `${artisticEnhancements}, ${text}`
+        : `${text}, ${artisticEnhancements}`;
 
       return new Response(JSON.stringify({ ok: true, originalText: text, translatedText }), { headers: jsonHeaders });
     }
@@ -228,9 +230,9 @@ export async function onRequest(context) {
     // Vision Analysis
     if (url.pathname === '/api/vision-analyze') {
       const promptTags = [
-        'masterpiece, best quality, highly detailed',
-        '8k resolution, cinematic lighting, sharp focus',
-        'vibrant color palette, concept art, stunning composition'
+        'masterpiece digital painting, fine art composition',
+        'rich vibrant color harmony, ideal exposure, volumetric lighting',
+        '8k resolution, sharp focus, refined textures'
       ];
       return new Response(JSON.stringify({
         ok: true,
@@ -370,10 +372,24 @@ export async function onRequest(context) {
       const engine = payload.engine || 'cf_workers_ai';
       const model = payload.model || '@cf/black-forest-labs/flux-1-schnell';
       const negativePrompt = payload.negativePrompt || '';
-      const width = parseInt(payload.width, 10) || 1024;
-      const height = parseInt(payload.height, 10) || 1024;
-      const steps = parseInt(payload.steps, 10) || 4;
+
+      // Align dimensions to 64 multiples and clamp long edge between 768 and 1024
+      let rawW = parseInt(payload.width, 10) || 1024;
+      let rawH = parseInt(payload.height, 10) || 1024;
+      const width = Math.min(1024, Math.max(768, Math.round(rawW / 64) * 64));
+      const height = Math.min(1024, Math.max(768, Math.round(rawH / 64) * 64));
+
+      // Optimal Step Mapping
+      let steps = parseInt(payload.steps, 10);
+      if (!steps || steps <= 0) {
+        if (model.includes('flux-1-schnell')) steps = 4;
+        else if (model.includes('lightning')) steps = 8;
+        else steps = 25;
+      }
+
       const count = Math.min(Math.max(parseInt(payload.batchCount, 10) || 1, 1), 4);
+      const img2imgRef = payload.image || payload.img2imgBase64 || null;
+      const strength = parseFloat(payload.strength) || 0.55;
 
       const enableHiresFix = payload.enableHiresFix === true;
       const hiresUpscaler = payload.hiresUpscaler || '4x-UltraSharp';
@@ -381,28 +397,32 @@ export async function onRequest(context) {
       const controlNetMode = payload.controlNetMode || 'none';
       const controlNetWeight = payload.controlNetWeight || 0.8;
 
-      // Ultimate Quality Boost Enhancer specifically tuned for free compute (FLUX.1 & SDXL)
-      let qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich vibrant color harmony, ample natural illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth, masterpiece details, trending on artstation';
+      // Dynamic Style-Adaptive Quality Enrichment
+      let qualityBoost = 'anime style, clean lineart, sharp focus, high detail, cel shading, official art, masterpiece, best quality, vibrant color balance, golden ratio composition, perfect exposure';
+      if (!prompt.toLowerCase().includes('anime') && !prompt.toLowerCase().includes('二次元')) {
+        qualityBoost = 'masterpiece digital artwork, fine art composition, rich vibrant color harmony, volumetric illumination, ideal exposure, ultra-sharp focus, highly refined 8k details, cinematic lighting';
+      }
 
       if (enableHiresFix) {
-        qualityBoost += `, hires fix, ${hiresUpscaler} upscaled, denoising ${denoisingStrength}, ultra sharp clarity, clean lineart, noise free, pristine edges`;
+        qualityBoost += `, hires fix, ${hiresUpscaler} upscaled, denoising ${denoisingStrength}, ultra sharp clarity, clean lineart, noise free`;
       }
 
       if (controlNetMode && controlNetMode !== 'none') {
-        qualityBoost += `, controlnet ${controlNetMode} structure lock weight ${controlNetWeight}, exact posture preservation, crisp contours, perfect proportions`;
+        qualityBoost += `, controlnet ${controlNetMode} structure lock weight ${controlNetWeight}, exact posture preservation, crisp contours`;
       }
 
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
-      // Single Image Fast Dispatched Generator with 25s AbortController Timeout
+      // Single Image Fast Dispatched Generator with Promise.allSettled and explicit error tracking
       const generateSingleImage = async (index) => {
         const seed = Math.floor(Math.random() * 10000000) + index * 99;
+        const errors = [];
 
         // 1. Universal OpenAI API Route
         if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
             const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
 
             const oaiRes = await fetch(`${baseUrl}/images/generations`, {
@@ -415,27 +435,52 @@ export async function onRequest(context) {
 
             const oaiData = await oaiRes.json();
             if (oaiRes.ok && oaiData.data?.[0]?.url) {
-              return oaiData.data[0].url;
+              return { url: oaiData.data[0].url, model: payload.openaiModel || 'dall-e-3', provider: 'OpenAI API' };
             }
-          } catch(e) {}
+            errors.push(`OpenAI API: ${oaiData.error?.message || 'Request failed'}`);
+          } catch(e) {
+            console.error('OpenAI generation error:', e);
+            errors.push(`OpenAI: ${e.message}`);
+          }
         }
 
         // 2. Cloudflare Workers AI Native Binding
         if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
           try {
-            const aiInputs = { prompt: finalPrompt, num_steps: steps };
-            if (negativePrompt) {
-              aiInputs.negative_prompt = negativePrompt;
+            let aiInputs = { prompt: finalPrompt };
+
+            // Model parameter tuning: FLUX Schnell only accepts prompt and seed
+            if (model.includes('flux-1-schnell')) {
+              aiInputs = { prompt: finalPrompt, seed };
+            } else {
+              aiInputs.num_steps = steps;
+              if (negativePrompt) aiInputs.negative_prompt = negativePrompt;
+              if (model.includes('stable-diffusion') || model.includes('dreamshaper')) {
+                aiInputs.width = width;
+                aiInputs.height = height;
+                if (img2imgRef) {
+                  aiInputs.image = img2imgRef;
+                  aiInputs.strength = strength;
+                }
+              }
             }
-            if (model.includes('stable-diffusion')) {
-              aiInputs.width = width;
-              aiInputs.height = height;
-            }
+
             const binaryRes = await env.AI.run(model, aiInputs);
             if (binaryRes) {
-              return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
+              if (binaryRes instanceof ArrayBuffer || binaryRes instanceof Uint8Array || binaryRes.byteLength) {
+                const u8 = binaryRes instanceof Uint8Array ? binaryRes : new Uint8Array(binaryRes);
+                if (u8.byteLength > 4096) {
+                  return { url: `data:image/png;base64,${uint8ArrayToBase64(u8)}`, model, provider: 'Workers AI Binding' };
+                }
+              } else if (typeof binaryRes === 'object' && binaryRes.image) {
+                return { url: `data:image/png;base64,${binaryRes.image}`, model, provider: 'Workers AI Binding (JSON)' };
+              }
             }
-          } catch(e) {}
+            errors.push(`Workers AI: Empty or truncated image response`);
+          } catch(e) {
+            console.error('Cloudflare Workers AI error:', e);
+            errors.push(`Workers AI (${model}): ${e.message}`);
+          }
         }
 
         // 3. Direct Cloudflare REST API Token Route
@@ -444,88 +489,102 @@ export async function onRequest(context) {
         if (accountId && apiToken) {
           try {
             const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-            const cfBody = { prompt: finalPrompt, width, height, steps };
-            if (negativePrompt) cfBody.negative_prompt = negativePrompt;
+            let cfBody = { prompt: finalPrompt };
+
+            if (model.includes('flux-1-schnell')) {
+              cfBody = { prompt: finalPrompt, seed };
+            } else {
+              cfBody.num_steps = steps;
+              if (negativePrompt) cfBody.negative_prompt = negativePrompt;
+            }
 
             const cfRes = await fetch(cfUrl, {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify(cfBody)
             });
+
             if (cfRes.ok) {
-              const buf = await cfRes.arrayBuffer();
-              return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`;
-            }
-          } catch(e) {}
-        }
-
-        // 4. Free Pollinations FLUX.1 Model Route (Primary - 20s Abort Signal, >4096 bytes check for black/blank images)
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20000);
-          const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
-
-          const pollRes = await fetch(pollUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          if (pollRes.ok) {
-            const pollBuf = await pollRes.arrayBuffer();
-            if (pollBuf && pollBuf.byteLength > 4096) {
-              return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
-            }
-          }
-        } catch(e) {}
-
-        // 5. Pollinations Flux-Realism / Turbo Secondary Route
-        const backupModels = ['flux-realism', 'turbo'];
-        for (const backupModel of backupModels) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
-            const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=${backupModel}&nologo=true`;
-
-            const pollRes2 = await fetch(backupUrl, { signal: controller.signal });
-            clearTimeout(timeoutId);
-
-            if (pollRes2.ok) {
-              const pollBuf2 = await pollRes2.arrayBuffer();
-              if (pollBuf2 && pollBuf2.byteLength > 4096) {
-                return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
+              const contentType = cfRes.headers.get('content-type') || '';
+              if (contentType.includes('application/json')) {
+                const jsonRes = await cfRes.json();
+                if (jsonRes.result?.image) {
+                  return { url: `data:image/png;base64,${jsonRes.result.image}`, model, provider: 'CF REST API' };
+                }
+              } else {
+                const buf = await cfRes.arrayBuffer();
+                if (buf && buf.byteLength > 4096) {
+                  return { url: `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`, model, provider: 'CF REST API' };
+                }
               }
             }
-          } catch(e) {}
+            errors.push(`CF REST API HTTP ${cfRes.status}`);
+          } catch(e) {
+            console.error('CF REST API error:', e);
+            errors.push(`CF REST API: ${e.message}`);
+          }
         }
 
-        // 6. High-Speed Generic Pollinations Route Fallback
-        try {
-          const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-          const pollRes3 = await fetch(backupUrl);
-          if (pollRes3.ok) {
-            const pollBuf3 = await pollRes3.arrayBuffer();
-            if (pollBuf3 && pollBuf3.byteLength > 4096) {
-              return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf3))}`;
-            }
-          }
-        } catch(e) {}
+        // 4. Free Pollinations FLUX.1 & Schnell Model Route (45s Abort Signal with Retry)
+        const pollModels = ['flux', 'flux-realism', 'turbo'];
+        for (const pollModel of pollModels) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=${pollModel}&nologo=true`;
 
-        // 7. Zero-Failure Guaranteed High-Res Vector Digital Art SVG Fallback
-        return createGuaranteedVectorArtDataUrl(prompt, width, height, seed);
+            const pollRes = await fetch(pollUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (pollRes.ok) {
+              const pollBuf = await pollRes.arrayBuffer();
+              if (pollBuf && pollBuf.byteLength > 4096) {
+                return { url: `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`, model: `Pollinations ${pollModel.toUpperCase()}`, provider: 'Pollinations AI' };
+              }
+            }
+            errors.push(`Pollinations ${pollModel} HTTP ${pollRes.status}`);
+          } catch(e) {
+            console.error(`Pollinations ${pollModel} error:`, e);
+            errors.push(`Pollinations ${pollModel}: ${e.message}`);
+          }
+        }
+
+        // Return clear error details instead of fake SVG graphics
+        throw new Error(`绘图算力调用失败 (${errors.join(' | ') || '无响应通道'})`);
       };
 
-      // Run ALL batch images in parallel via Promise.all
+      // Execute ALL batch tasks in parallel via Promise.allSettled
       const imagePromises = [];
       for (let i = 0; i < count; i++) {
         imagePromises.push(generateSingleImage(i));
       }
 
-      const generatedImages = await Promise.all(imagePromises);
+      const settledResults = await Promise.allSettled(imagePromises);
+      const outputImages = settledResults.map((res, idx) => {
+        if (res.status === 'fulfilled') {
+          return { ok: true, url: res.value.url, model: res.value.model, provider: res.value.provider };
+        } else {
+          return { ok: false, error: res.reason?.message || '生成失败', index: idx + 1 };
+        }
+      });
+
+      const successCount = outputImages.filter(img => img.ok).length;
+      if (successCount === 0) {
+        return new Response(JSON.stringify({
+          ok: false,
+          error: '全部算力通道均调用失败',
+          detail: outputImages.map(i => i.error).join('; ')
+        }), { status: 502, headers: jsonHeaders });
+      }
 
       return new Response(JSON.stringify({
         ok: true,
         id: `gen-${Date.now()}`,
-        url: generatedImages[0],
-        images: generatedImages,
-        count: generatedImages.length
+        url: (outputImages.find(i => i.ok) || {}).url,
+        images: outputImages.map(i => i.ok ? i.url : null),
+        results: outputImages,
+        count: outputImages.length,
+        successCount
       }), { headers: jsonHeaders });
     }
 
@@ -534,78 +593,6 @@ export async function onRequest(context) {
   } catch (err) {
     return new Response(JSON.stringify({ ok: false, error: err.message }), { status: 500, headers: jsonHeaders });
   }
-}
-
-// Zero-Failure High Definition Digital Vector Artwork Data URL Generator
-function createGuaranteedVectorArtDataUrl(prompt, width, height, seed) {
-  const colorPalettes = [
-    ['#0f172a', '#1e1b4b', '#312e81', '#4338ca', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#fb923c', '#facc15'],
-    ['#022c22', '#064e3b', '#047857', '#10b981', '#34d399', '#06b6d4', '#38bdf8', '#818cf8', '#c084fc', '#f472b6'],
-    ['#18181b', '#27272a', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#e4e4e7', '#38bdf8', '#818cf8', '#f43f5e'],
-    ['#2e1065', '#3b0764', '#581c87', '#7e22ce', '#a855f7', '#c084fc', '#e879f9', '#f472b6', '#fb7185', '#fda4af']
-  ];
-  const palette = colorPalettes[seed % colorPalettes.length];
-  const escapedPrompt = escapeXml(prompt);
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-    <defs>
-      <linearGradient id="bg_${seed}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="${palette[0]}" />
-        <stop offset="50%" stop-color="${palette[1]}" />
-        <stop offset="100%" stop-color="${palette[2]}" />
-      </linearGradient>
-      <radialGradient id="glow_${seed}" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="${palette[4]}" stop-opacity="0.8" />
-        <stop offset="50%" stop-color="${palette[5]}" stop-opacity="0.4" />
-        <stop offset="100%" stop-color="${palette[0]}" stop-opacity="0" />
-      </radialGradient>
-      <linearGradient id="accent_${seed}" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="${palette[6]}" />
-        <stop offset="50%" stop-color="${palette[7]}" />
-        <stop offset="100%" stop-color="${palette[8]}" />
-      </linearGradient>
-      <filter id="blur_${seed}" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="35" />
-      </filter>
-    </defs>
-
-    <rect width="100%" height="100%" fill="url(#bg_${seed})" />
-
-    <!-- Fine digital grid overlay -->
-    <g opacity="0.12" stroke="#ffffff" stroke-width="0.5">
-      <path d="M0 ${height * 0.2} L${width} ${height * 0.2} M0 ${height * 0.4} L${width} ${height * 0.4} M0 ${height * 0.6} L${width} ${height * 0.6} M0 ${height * 0.8} L${width} ${height * 0.8}" />
-      <path d="M${width * 0.2} 0 L${width * 0.2} ${height} M${width * 0.4} 0 L${width * 0.4} ${height} M${width * 0.6} 0 L${width * 0.6} ${height} M${width * 0.8} 0 L${width * 0.8} ${height}" />
-    </g>
-
-    <!-- Soft glowing artistic lighting & volumetric depth -->
-    <circle cx="${width * 0.5}" cy="${height * 0.45}" r="${Math.min(width, height) * 0.45}" fill="url(#glow_${seed})" />
-    <circle cx="${width * 0.3}" cy="${height * 0.3}" r="${Math.min(width, height) * 0.25}" fill="${palette[3]}" opacity="0.5" filter="url(#blur_${seed})" />
-    <circle cx="${width * 0.7}" cy="${height * 0.6}" r="${Math.min(width, height) * 0.3}" fill="${palette[6]}" opacity="0.4" filter="url(#blur_${seed})" />
-
-    <!-- Central artistic geometric art centerpiece -->
-    <g transform="translate(${width * 0.5}, ${height * 0.42})">
-      <polygon points="0,-${height * 0.22} ${width * 0.18},${height * 0.12} -${width * 0.18},${height * 0.12}" fill="url(#accent_${seed})" opacity="0.85" />
-      <polygon points="0,${height * 0.22} ${width * 0.15},-${height * 0.1} -${width * 0.15},-${height * 0.1}" fill="${palette[9]}" opacity="0.7" />
-      <circle cx="0" cy="0" r="${Math.min(width, height) * 0.08}" fill="#ffffff" opacity="0.9" />
-      <circle cx="0" cy="0" r="${Math.min(width, height) * 0.05}" fill="${palette[4]}" />
-    </g>
-
-    <!-- Fine detail frame & caption overlay -->
-    <rect x="${width * 0.05}" y="${height * 0.05}" width="${width * 0.9}" height="${height * 0.9}" fill="none" stroke="${palette[8]}" stroke-width="1.5" opacity="0.4" rx="16" />
-    <rect x="${width * 0.07}" y="${height * 0.07}" width="${width * 0.86}" height="${height * 0.86}" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.2" rx="12" />
-
-    <g transform="translate(${width * 0.5}, ${height * 0.82})">
-      <rect x="-${width * 0.4}" y="-${height * 0.06}" width="${width * 0.8}" height="${height * 0.1}" rx="8" fill="rgba(15, 23, 42, 0.75)" stroke="${palette[4]}" stroke-width="1" opacity="0.9" />
-      <text x="0" y="-${height * 0.01}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(14, Math.round(width / 36))}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2">FOX AI DIGITAL MASTERPIECE 8K</text>
-      <text x="0" y="${height * 0.025}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(11, Math.round(width / 52))}" font-weight="500" fill="${palette[4]}" text-anchor="middle">${escapedPrompt.slice(0, 50)}</text>
-    </g>
-  </svg>`;
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-function escapeXml(str) {
-  return str.replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\'': '&apos;', '"': '&quot;' }[c]));
 }
 
 function uint8ArrayToBase64(uint8Array) {

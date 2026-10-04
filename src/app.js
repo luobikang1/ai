@@ -1,5 +1,5 @@
 import './style.css';
-import { PRESET_MODELS, ART_STYLES, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS, HIRES_UPSCALERS, CONTROLNET_MODES } from './config.js';
+import { PRESET_MODELS, ART_STYLES, ART_ENHANCEMENT_TAGS, NEGATIVE_PROMPT_PRESETS, THEME_ACCENTS, BACKGROUND_PRESETS, COMPUTE_ENGINES, SUPPORTED_LANGUAGES, I18N_STRINGS, HIRES_UPSCALERS, CONTROLNET_MODES } from './config.js';
 
 const DEFAULT_AVATAR = '/assets/fox-avatar.webp';
 
@@ -69,6 +69,9 @@ const state = {
   controlNetMode: 'none',
   controlNetWeight: 0.8,
 
+  // Img2Img Strength (default 0.55, 0.45~0.65 structure lock, 0.7~0.85 style redesign)
+  img2imgStrength: 0.55,
+
   img2imgBase64: null,
   isGenerating: false,
   lastGeneratedImages: [],
@@ -127,7 +130,7 @@ function applyAppPreferences() {
   document.body.className = `font-size-${state.fontSize} theme-${state.themeAccent} ${bgObj.bgClass}`;
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -136,13 +139,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
     clearTimeout(id);
     const data = await res.json();
     if (!res.ok || data.ok === false) {
-      throw new Error(data.error || data.message || `请求失败 HTTP ${res.status}`);
+      throw new Error(data.error || data.detail || data.message || `请求失败 HTTP ${res.status}`);
     }
     return data;
   } catch (err) {
     clearTimeout(id);
     if (err.name === 'AbortError') {
-      throw new Error('网络请求超时，请重试');
+      throw new Error('网络请求超时 (60s)，请更换较快的模型或算力通道');
     }
     throw err;
   }
@@ -563,9 +566,13 @@ function renderGenerationWorkspace() {
 
         ${isImg2Img ? `
           <div class="glass-panel p-4 space-y-3">
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              🖼️ 上传参考图 (Image-to-Image)
-            </label>
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                🖼️ 上传参考图 (Image-to-Image)
+              </label>
+              <span class="text-[11px] font-bold text-blue-500">重绘强度 Strength: ${state.img2imgStrength}</span>
+            </div>
+
             <div id="img2img-dropzone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition relative bg-slate-50/50 dark:bg-slate-900/50">
               ${state.img2imgBase64 ? `
                 <div class="relative inline-block">
@@ -579,6 +586,14 @@ function renderGenerationWorkspace() {
                 </div>
               `}
               <input type="file" id="img2img-file-input" accept="image/*" class="hidden" />
+            </div>
+
+            <div class="space-y-1 pt-1">
+              <div class="flex justify-between text-[11px] text-slate-400">
+                <span>锁结构 (0.45~0.65)</span>
+                <span>风格重绘 (0.7~0.85)</span>
+              </div>
+              <input type="range" id="img2img-strength-range" min="0.1" max="0.95" step="0.05" value="${state.img2imgStrength}" class="w-full accent-blue-500" />
             </div>
           </div>
         ` : ''}
@@ -594,6 +609,28 @@ function renderGenerationWorkspace() {
           </div>
 
           <textarea id="prompt-input" rows="3" class="fox-input font-mono text-xs leading-relaxed" placeholder="输入提示词，例如：白狐神兽，国风水墨，灵动，高清...">${state.prompt}</textarea>
+
+          <!-- Art Enhancement Quick Shortcuts -->
+          <div class="space-y-1.5 pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
+            <span class="text-[10px] font-bold text-slate-400">✨ 艺术提质快捷增强词（点击追加）：</span>
+            <div class="flex flex-wrap gap-1.5">
+              ${ART_ENHANCEMENT_TAGS.quality.slice(0, 3).map(tag => `
+                <button data-add-tag="${tag}" class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500/20 transition">
+                  + ${tag}
+                </button>
+              `).join('')}
+              ${ART_ENHANCEMENT_TAGS.lighting.slice(0, 2).map(tag => `
+                <button data-add-tag="${tag}" class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20 transition">
+                  + ${tag}
+                </button>
+              `).join('')}
+              ${ART_ENHANCEMENT_TAGS.composition.slice(0, 1).map(tag => `
+                <button data-add-tag="${tag}" class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-500/10 text-purple-500 border border-purple-500/20 hover:bg-purple-500/20 transition">
+                  + ${tag}
+                </button>
+              `).join('')}
+            </div>
+          </div>
         </div>
 
         <div class="space-y-2">
@@ -669,8 +706,8 @@ function renderGenerationWorkspace() {
                   <input type="range" id="steps-range" min="1" max="50" value="${state.steps}" class="w-full accent-blue-500" />
                 </div>
                 <div>
-                  <label class="block font-bold mb-1">提示词引导 (CFG Scale): ${state.cfgScale}</label>
-                  <input type="range" id="cfg-range" min="1" max="20" step="0.5" value="${state.cfgScale}" class="w-full accent-blue-500" />
+                  <label class="block font-bold mb-1 ${selectedModelObj.supportsCFG === false ? 'opacity-50' : ''}">提示词引导 (CFG Scale): ${selectedModelObj.supportsCFG === false ? '不支持 (FLUX固定)' : state.cfgScale}</label>
+                  <input type="range" id="cfg-range" min="1" max="20" step="0.5" value="${state.cfgScale}" class="w-full accent-blue-500 ${selectedModelObj.supportsCFG === false ? 'opacity-40 cursor-not-allowed' : ''}" ${selectedModelObj.supportsCFG === false ? 'disabled' : ''} />
                 </div>
               </div>
 
@@ -755,12 +792,24 @@ function renderGenerationWorkspace() {
               </div>
             ` : state.lastGeneratedImages.length > 0 ? `
               <div class="grid ${state.lastGeneratedImages.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 w-full">
-                ${state.lastGeneratedImages.map((img, idx) => `
-                  <div class="aspect-square bg-slate-950 rounded-lg overflow-hidden relative cursor-pointer group" data-open-preview="${encodeURIComponent(img.url)}">
-                    <img src="${img.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
-                    <span class="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded bg-black/70 text-white font-bold">图 #${idx + 1}</span>
-                  </div>
-                `).join('')}
+                ${state.lastGeneratedImages.map((img, idx) => {
+                  if (img.ok && img.url) {
+                    return `
+                      <div class="aspect-square bg-slate-950 rounded-lg overflow-hidden relative cursor-pointer group border border-slate-700" data-open-preview="${encodeURIComponent(img.url)}">
+                        <img src="${img.url}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+                        <span class="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded bg-black/70 text-white font-bold">图 #${idx + 1}</span>
+                      </div>
+                    `;
+                  } else {
+                    return `
+                      <div class="aspect-square bg-red-950/40 rounded-lg p-2.5 flex flex-col items-center justify-center text-center border border-red-500/30 text-red-300 space-y-1">
+                        <span class="text-xl">⚠️</span>
+                        <span class="text-[10px] font-bold">图 #${idx + 1} 生成失败</span>
+                        <span class="text-[9px] text-red-400/90 line-clamp-3 leading-tight">${img.error || '算力调用失败'}</span>
+                      </div>
+                    `;
+                  }
+                }).join('')}
               </div>
             ` : `
               <div class="text-center p-6 space-y-2">
@@ -1363,6 +1412,16 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('click', async (e) => {
+    const addTagBtn = e.target.closest('[data-add-tag]');
+    if (addTagBtn) {
+      const tag = addTagBtn.getAttribute('data-add-tag');
+      if (tag) {
+        state.prompt = state.prompt ? `${state.prompt}, ${tag}` : tag;
+        renderApp();
+      }
+      return;
+    }
+
     if (e.target.closest('#toggle-custom-size-btn')) {
       state.isCustomSize = !state.isCustomSize;
       renderApp();
@@ -1646,10 +1705,25 @@ function bindGlobalEvents() {
       return;
     }
 
+    if (e.target.closest('#img2img-dropzone')) {
+      document.getElementById('img2img-file-input')?.click();
+      return;
+    }
+
+    if (e.target.closest('#remove-ref-img-btn')) {
+      state.img2imgBase64 = null;
+      renderApp();
+      return;
+    }
+
     const useModelBtn = e.target.closest('[data-use-model]');
     if (useModelBtn) {
       state.selectedModel = useModelBtn.getAttribute('data-use-model');
       localStorage.setItem('fox_selected_model', state.selectedModel);
+      const modelObj = PRESET_MODELS.find(m => m.id === state.selectedModel);
+      if (modelObj && modelObj.defaultSteps) {
+        state.steps = modelObj.defaultSteps;
+      }
       state.activeTab = 'txt2img';
       renderApp();
       return;
@@ -1695,6 +1769,18 @@ function bindGlobalEvents() {
   });
 
   document.addEventListener('change', async (e) => {
+    if (e.target.id === 'img2img-file-input') {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          state.img2imgBase64 = evt.target.result;
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
     if (e.target.id === 'r2-file-input') {
       const files = e.target.files;
       if (!files || files.length === 0) return;
@@ -1771,6 +1857,10 @@ function bindGlobalEvents() {
       state.controlNetWeight = parseFloat(e.target.value);
       renderApp();
     }
+    if (e.target.id === 'img2img-strength-range') {
+      state.img2imgStrength = parseFloat(e.target.value);
+      renderApp();
+    }
     if (e.target.id === 'model-search-input') {
       state.searchQuery = e.target.value;
     }
@@ -1812,7 +1902,7 @@ async function handlePromptTranslation() {
       if (promptInput) promptInput.value = state.prompt;
     }
   } catch (err) {
-    const boost = 'masterpiece, best quality, digital artwork, artistic composition, rich color harmony, ample lighting, ideal exposure, exquisite details, 8k resolution';
+    const boost = 'masterpiece digital painting, fine art composition, rich color balance, volumetric illumination, ideal exposure, highly refined details, 8k resolution';
     state.prompt = state.prompt.includes('masterpiece') ? state.prompt : `${state.prompt}, ${boost}`;
     const promptInput = document.getElementById('prompt-input');
     if (promptInput) promptInput.value = state.prompt;
@@ -1830,7 +1920,7 @@ async function handleGenerateImage() {
 
     // Automatic quality boost for digital art composition, rich colors, ample lighting, and ideal exposure
     if (!finalPrompt.toLowerCase().includes('masterpiece')) {
-      finalPrompt = `${finalPrompt}, masterpiece, best quality, fine digital art composition, rich color balance, ample natural illumination, perfect exposure, highly exquisite details, 8k resolution, ultra-sharp focus`;
+      finalPrompt = `${finalPrompt}, masterpiece digital artwork, fine art composition, rich vibrant color harmony, volumetric illumination, ideal exposure, highly exquisite 8k details, sharp focus`;
     }
 
     const data = await fetchWithTimeout('/api/generate', {
@@ -1850,6 +1940,7 @@ async function handleGenerateImage() {
         denoisingStrength: state.denoisingStrength,
         controlNetMode: state.controlNetMode,
         controlNetWeight: state.controlNetWeight,
+        strength: state.img2imgStrength,
         image: state.activeTab === 'img2img' ? state.img2imgBase64 : null,
         cfAccountId: state.settings.cfAccountId,
         cfApiToken: state.settings.cfApiToken,
@@ -1857,21 +1948,50 @@ async function handleGenerateImage() {
         openaiBaseUrl: state.settings.openaiBaseUrl,
         openaiModel: state.settings.openaiModel
       })
-    }, 45000);
+    }, 60000);
 
-    const imgList = data && data.images && data.images.length > 0 ? data.images : [data.url || data.image];
-    state.lastGeneratedImages = imgList.map((url, idx) => ({
-      url: url,
-      prompt: state.prompt,
-      model: state.selectedModel,
-      width: state.width,
-      height: state.height,
-      timestamp: Date.now() + idx
-    }));
+    let resultsList = [];
+    if (data && data.results && Array.isArray(data.results)) {
+      resultsList = data.results;
+    } else if (data && data.images) {
+      resultsList = data.images.map(img => img ? { ok: true, url: img } : { ok: false, error: '生成失败' });
+    } else {
+      resultsList = [{ ok: true, url: data.url }];
+    }
 
-    state.lastGeneratedImage = state.lastGeneratedImages[0];
+    state.lastGeneratedImages = resultsList.map((res, idx) => {
+      if (res.ok && res.url) {
+        return {
+          ok: true,
+          url: res.url,
+          prompt: state.prompt,
+          model: res.model || state.selectedModel,
+          provider: res.provider || 'AI Engine',
+          width: state.width,
+          height: state.height,
+          timestamp: Date.now() + idx
+        };
+      } else {
+        return {
+          ok: false,
+          error: res.error || '算力通道响应失败',
+          prompt: state.prompt,
+          index: idx + 1
+        };
+      }
+    });
+
+    const firstSuccess = state.lastGeneratedImages.find(i => i.ok);
+    if (firstSuccess) {
+      state.lastGeneratedImage = firstSuccess;
+    } else {
+      state.lastGeneratedImage = null;
+    }
+
     for (const item of state.lastGeneratedImages) {
-      state.localHistory.unshift(item);
+      if (item.ok) {
+        state.localHistory.unshift(item);
+      }
     }
     localStorage.setItem('fox_history', JSON.stringify(state.localHistory));
 
