@@ -444,7 +444,7 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // 4. Free Pollinations FLUX.1 Model Route (Primary - 20s Abort Signal)
+        // 4. Free Pollinations FLUX.1 Model Route (Primary - 20s Abort Signal, >4096 bytes check for black/blank images)
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 20000);
@@ -455,7 +455,7 @@ export async function onRequest(context) {
 
           if (pollRes.ok) {
             const pollBuf = await pollRes.arrayBuffer();
-            if (pollBuf && pollBuf.byteLength > 100) {
+            if (pollBuf && pollBuf.byteLength > 4096) {
               return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
             }
           }
@@ -474,7 +474,7 @@ export async function onRequest(context) {
 
             if (pollRes2.ok) {
               const pollBuf2 = await pollRes2.arrayBuffer();
-              if (pollBuf2 && pollBuf2.byteLength > 100) {
+              if (pollBuf2 && pollBuf2.byteLength > 4096) {
                 return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
               }
             }
@@ -487,7 +487,7 @@ export async function onRequest(context) {
           const pollRes3 = await fetch(backupUrl);
           if (pollRes3.ok) {
             const pollBuf3 = await pollRes3.arrayBuffer();
-            if (pollBuf3 && pollBuf3.byteLength > 100) {
+            if (pollBuf3 && pollBuf3.byteLength > 4096) {
               return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf3))}`;
             }
           }
