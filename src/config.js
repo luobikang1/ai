@@ -5,7 +5,9 @@ export const PRESET_MODELS = [
     author: 'Black Forest Labs',
     category: '文生图/旗舰',
     isFree: true,
-    nsfwSupport: true,
+    supportsCFG: false,
+    supportsImg2Img: false,
+    defaultSteps: 4,
     description: '全网顶尖 FLUX.1 极速模型，画质与细节表现极佳。',
     cover: '/assets/fox-avatar.webp',
     sourceUrl: 'https://civitai.com'
@@ -16,7 +18,9 @@ export const PRESET_MODELS = [
     author: 'ByteDance',
     category: '二次元/动漫',
     isFree: true,
-    nsfwSupport: true,
+    supportsCFG: true,
+    supportsImg2Img: true,
+    defaultSteps: 8,
     description: '字节跳动极速高精细节算力，毫秒级出图，完美支持二次元与国风海报。',
     cover: '/assets/fox-avatar.webp',
     sourceUrl: 'https://huggingface.co'
@@ -27,7 +31,9 @@ export const PRESET_MODELS = [
     author: 'Stability AI',
     category: '真实/人像',
     isFree: true,
-    nsfwSupport: true,
+    supportsCFG: true,
+    supportsImg2Img: true,
+    defaultSteps: 25,
     description: '官方SDXL旗舰模型，高精细真实构图、真实质感人像与风光大片。',
     cover: '/assets/fox-avatar.webp',
     sourceUrl: 'https://stability.ai'
@@ -38,18 +44,47 @@ export const PRESET_MODELS = [
     author: 'Lykon',
     category: '插画/CG',
     isFree: true,
-    nsfwSupport: true,
+    supportsCFG: true,
+    supportsImg2Img: true,
+    defaultSteps: 20,
     description: '万能二次元插画与游戏3D CG模型，色彩鲜艳细节丰富。',
     cover: '/assets/fox-avatar.webp',
     sourceUrl: 'https://civitai.com'
+  },
+  {
+    id: '@cf/prompthero/openjourney',
+    name: 'OpenJourney v4 (Midjourney画风) [免费算力]',
+    author: 'PromptHero',
+    category: '艺术/插画',
+    isFree: true,
+    supportsCFG: true,
+    supportsImg2Img: true,
+    defaultSteps: 20,
+    description: '模拟 Midjourney 顶级艺术风格与色彩大片表现。',
+    cover: '/assets/fox-avatar.webp',
+    sourceUrl: 'https://huggingface.co'
+  },
+  {
+    id: '@cf/runwayml/stable-diffusion-v1-5-inpainting',
+    name: 'SD v1.5 Inpainting (局部重绘/精修) [免费算力]',
+    author: 'RunwayML',
+    category: '修图/精修',
+    isFree: true,
+    supportsCFG: true,
+    supportsImg2Img: true,
+    defaultSteps: 20,
+    description: '稳定流畅的 SD 1.5 图像重绘与局部补全经典模型。',
+    cover: '/assets/fox-avatar.webp',
+    sourceUrl: 'https://huggingface.co'
   }
 ];
 
 export const COMPUTE_ENGINES = [
-  { id: 'cf_workers_ai', name: 'Cloudflare Workers AI (免费内置算力)', isFree: true },
+  { id: 'pollinations_ai', name: 'Pollinations FLUX.1 & Turbo (免Key全球免限流算力)', isFree: true },
+  { id: 'cf_workers_ai', name: 'Cloudflare Workers AI (免费内置高精算力)', isFree: true },
+  { id: 'huggingface_free', name: 'HuggingFace Free Public Inference (社区公共算力)', isFree: true },
   { id: 'cf_rest_api', name: 'Cloudflare Direct REST API (凭证直连算力)', isFree: true },
-  { id: 'openai_compatible', name: 'OpenAI 兼容通用图像算力 (DALL-E 3 / 通用 API)', isFree: false },
-  { id: 'pollinations_ai', name: 'Pollinations FLUX AI (免Key全功能算力)', isFree: true }
+  { id: 'openai_compatible', name: 'OpenAI 兼容通用图像算力 (DALL-E 3 / 通用 API)', isFree: false }
 ];
 
 export const BACKGROUND_PRESETS = [
@@ -63,18 +98,38 @@ export const BACKGROUND_PRESETS = [
 
 export const ART_STYLES = [
   { id: 'none', name: '预设风格', prompt: '' },
-  { id: 'anime', name: '日系动漫', prompt: 'masterpiece, best quality, anime style, highly detailed, vibrant colors, makoto shinkai aesthetic' },
-  { id: 'photorealistic', name: '写实人像', prompt: 'photorealistic, 8k resolution, raw photo, highly detailed skin texture, professional lighting, cinematic' },
-  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk style, neon lights, futuristic city background, glowing highlights, volumetric lighting' },
-  { id: 'chinese_poster', name: '国风海报', prompt: 'traditional chinese art style, elegant poster design, ink painting, golden ratio, masterpiece, highly detailed' },
-  { id: '3d_pixar', name: '3D皮克斯', prompt: '3d render, pixar style, cute, vibrant colors, smooth lighting, octane render, 4k' },
-  { id: 'oil_painting', name: '复古油画', prompt: 'oil painting style, rich texture, van gogh artistic stroke, masterpiece, museum quality' }
+  { id: 'anime', name: '日系动漫', prompt: 'masterpiece, best quality, digital anime illustration, cel shading, crisp lineart, vibrant color balance, golden hour illumination, cinematic dynamic composition, sharp focus, 8k resolution' },
+  { id: 'photorealistic', name: '写实人像', prompt: 'masterpiece digital portrait, photorealistic artwork, exquisite skin texture, vibrant color harmony, rich illumination, cinematic light and shadow, optimal exposure, perfect artistic composition, 8k resolution, ultra detailed' },
+  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk digital masterpiece, futuristic metropolis, luminous neon reflections, vibrant saturated colors, dramatic volumetric lighting, ideal camera exposure, hyper detailed 8k art composition' },
+  { id: 'chinese_poster', name: '国风海报', prompt: 'traditional chinese fine art digital illustration, golden ratio composition, refined ink wash atmosphere, harmonious lighting, exquisite oriental ornamentation, vibrant color palette, 8k resolution masterpiece' },
+  { id: '3d_pixar', name: '3D皮克斯', prompt: '3d digital art render, pixar studio animation style, vibrant pastel color harmony, soft ambient studio lighting, optimal exposure, refined textures, golden composition, 8k resolution' },
+  { id: 'oil_painting', name: '复古油画', prompt: 'fine art oil painting masterpiece, rich impasto texture, expressive brush strokes, vibrant color balance, dramatic chiaroscuro lighting, perfect exposure, museum quality 8k' }
 ];
 
+export const ART_ENHANCEMENT_TAGS = {
+  quality: ['masterpiece digital artwork', 'fine art composition', 'rich color balance', 'ideal exposure', 'ample dynamic illumination', 'exquisite sharp focus', '8k resolution'],
+  lighting: ['volumetric cinematic lighting', 'soft studio illumination', 'dramatic chiaroscuro', 'glowing ray tracing', 'warm golden hour light', 'ambient rim lighting'],
+  composition: ['golden ratio composition', 'rule of thirds alignment', 'dramatic wide-angle perspective', 'cinematic depth of field', 'symmetrical balance'],
+  camera: ['35mm prime lens photography', '85mm portrait bokeh', 'ultra-wide cinematic angle', 'macro detail focus', 'eye-level perspective']
+};
+
 export const NEGATIVE_PROMPT_PRESETS = [
-  'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
-  'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck',
-  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch'
+  'lowres, blurry, jpeg artifacts, extra fingers, deformed, watermark, text, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, signature, username, dark underexposed image, dull colors, oversaturated noise, broken lines, asymmetrical face, out of frame',
+  'deformed, distorted, disfigured, poorly drawn face, mutation, mutated, extra limbs, extra legs, extra arms, fused fingers, too many fingers, long neck, lowres, blurry, dark underexposed, pixelated, grain',
+  'worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch, lowres, blurry, jpeg artifacts, black background glitch, corrupted pixels'
+];
+
+export const HIRES_UPSCALERS = [
+  { id: '4x-UltraSharp', name: '4x-UltraSharp (高清精致首选)' },
+  { id: 'R-ESRGAN', name: 'R-ESRGAN (真实色彩复原)' },
+  { id: 'Latent', name: 'Latent (高动态潜空间放大)' }
+];
+
+export const CONTROLNET_MODES = [
+  { id: 'none', name: '不开启 ControlNet' },
+  { id: 'lineart', name: 'Lineart 线条轮廓提取 (二次元/插画推荐)' },
+  { id: 'canny', name: 'Canny 边缘检测 (硬核结构锁定)' },
+  { id: 'openpose', name: 'OpenPose 人体姿态控制 (解决肢体变形)' }
 ];
 
 export const THEME_ACCENTS = [

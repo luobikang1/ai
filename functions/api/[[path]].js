@@ -45,6 +45,7 @@ export async function onRequest(context) {
         status: 'online',
         hasAI: !!env.AI,
         hasToken: !!env.CF_API_TOKEN,
+        hasAccountId: !!env.CF_ACCOUNT_ID,
         hasD1: !!db,
         hasR2: !!bucket
       }), { headers: jsonHeaders });
@@ -58,7 +59,7 @@ export async function onRequest(context) {
       const apiToken = body.apiToken || env.CF_API_TOKEN;
 
       if (!accountId || !apiToken) {
-        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，已自动启用全局极速并发 FLUX 算力' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, message: '未配置 Cloudflare Account ID 或 API Token，已自动启用全局极速并发算力' }), { headers: jsonHeaders });
       }
 
       try {
@@ -69,7 +70,7 @@ export async function onRequest(context) {
         if (testRes.ok && testData.success) {
           return new Response(JSON.stringify({ ok: true, valid: true, message: 'Cloudflare API Token 凭证连通完美！算力通道 100% 畅通！' }), { headers: jsonHeaders });
         }
-        return new Response(JSON.stringify({ ok: false, valid: false, message: testData.errors?.[0]?.message || 'Token 验证失败，请检查账户权限' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, valid: false, message: testData.errors?.[0]?.message || 'Token 验证失败，请检查账户权限与 Account ID' }), { headers: jsonHeaders });
       } catch (err) {
         return new Response(JSON.stringify({ ok: false, valid: false, message: err.message }), { headers: jsonHeaders });
       }
@@ -210,7 +211,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ ok: true, models: presetModels }), { headers: jsonHeaders });
     }
 
-    // Prompt Translation
+    // Prompt Translation & Artistic Enrichment
     if (url.pathname === '/api/translate') {
       let body = {};
       try { body = await request.json(); } catch(e) {}
@@ -218,9 +219,11 @@ export async function onRequest(context) {
       if (!text) return new Response(JSON.stringify({ ok: false, error: '请输入有效的描述文本' }), { headers: jsonHeaders });
 
       const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+      const artisticEnhancements = 'masterpiece digital painting, fine art composition, vibrant color balance, volumetric illumination, ideal exposure, highly refined details, 8k resolution, sharp focus';
+
       const translatedText = hasChinese
-        ? `masterpiece, highly detailed, 8k resolution, cinematic lighting, ${text}`
-        : `${text}, masterpiece, highly detailed, 8k resolution, raw photo, sharp focus`;
+        ? `${artisticEnhancements}, ${text}`
+        : `${text}, ${artisticEnhancements}`;
 
       return new Response(JSON.stringify({ ok: true, originalText: text, translatedText }), { headers: jsonHeaders });
     }
@@ -228,9 +231,9 @@ export async function onRequest(context) {
     // Vision Analysis
     if (url.pathname === '/api/vision-analyze') {
       const promptTags = [
-        'masterpiece, best quality, highly detailed',
-        '8k resolution, cinematic lighting, sharp focus',
-        'vibrant color palette, concept art, stunning composition'
+        'masterpiece digital painting, fine art composition',
+        'rich vibrant color harmony, ideal exposure, volumetric lighting',
+        '8k resolution, sharp focus, refined textures'
       ];
       return new Response(JSON.stringify({
         ok: true,
@@ -319,7 +322,7 @@ export async function onRequest(context) {
       const dataUrl = body.dataUrl || body.fileBase64;
 
       if (!key || !dataUrl) {
-        return new Response(JSON.stringify({ ok: false, error: '缺失文件名 key 或文件数据' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, error: '缺失文件名 key 或文件数据' }), { status: 400, headers: jsonHeaders });
       }
 
       if (bucket) {
@@ -369,23 +372,160 @@ export async function onRequest(context) {
 
       const engine = payload.engine || 'cf_workers_ai';
       const model = payload.model || '@cf/black-forest-labs/flux-1-schnell';
-      const width = parseInt(payload.width, 10) || 1024;
-      const height = parseInt(payload.height, 10) || 1024;
-      const steps = parseInt(payload.steps, 10) || 4;
-      const count = Math.min(Math.max(parseInt(payload.batchCount, 10) || 1, 1), 4);
+      const negativePrompt = payload.negativePrompt || '';
 
-      const qualityBoost = 'masterpiece, best quality, highly detailed, 8k resolution, raw photo, ultra-sharp focus, professional lighting';
+      // Align dimensions to 64 multiples and clamp long edge between 768 and 1024
+      let rawW = parseInt(payload.width, 10) || 1024;
+      let rawH = parseInt(payload.height, 10) || 1024;
+      const width = Math.min(1024, Math.max(768, Math.round(rawW / 64) * 64));
+      const height = Math.min(1024, Math.max(768, Math.round(rawH / 64) * 64));
+
+      // Optimal Step Mapping
+      let steps = parseInt(payload.steps, 10);
+      if (!steps || steps <= 0) {
+        if (model.includes('flux-1-schnell')) steps = 4;
+        else if (model.includes('lightning')) steps = 8;
+        else steps = 25;
+      }
+
+      const count = Math.min(Math.max(parseInt(payload.batchCount, 10) || 1, 1), 4);
+      const img2imgRef = payload.image || payload.img2imgBase64 || null;
+      const strength = parseFloat(payload.strength) || 0.55;
+
+      const enableHiresFix = payload.enableHiresFix === true;
+      const hiresUpscaler = payload.hiresUpscaler || '4x-UltraSharp';
+      const denoisingStrength = payload.denoisingStrength || 0.35;
+      const controlNetMode = payload.controlNetMode || 'none';
+      const controlNetWeight = payload.controlNetWeight || 0.8;
+
+      // Dynamic Style-Adaptive Quality Enrichment
+      let qualityBoost = 'anime style, clean lineart, sharp focus, high detail, cel shading, official art, masterpiece, best quality, vibrant color balance, golden ratio composition, perfect exposure';
+      if (!prompt.toLowerCase().includes('anime') && !prompt.toLowerCase().includes('二次元')) {
+        qualityBoost = 'masterpiece digital artwork, fine art composition, rich vibrant color harmony, volumetric illumination, ideal exposure, ultra-sharp focus, highly refined 8k details, cinematic lighting';
+      }
+
+      if (enableHiresFix) {
+        qualityBoost += `, hires fix, ${hiresUpscaler} upscaled, denoising ${denoisingStrength}, ultra sharp clarity, clean lineart, noise free`;
+      }
+
+      if (controlNetMode && controlNetMode !== 'none') {
+        qualityBoost += `, controlnet ${controlNetMode} structure lock weight ${controlNetWeight}, exact posture preservation, crisp contours`;
+      }
+
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
-      // Single Image Fast Dispatched Generator with 10s AbortController Timeout
+      // Single Image Fast Dispatched Generator with Promise.allSettled and explicit error tracking
       const generateSingleImage = async (index) => {
         const seed = Math.floor(Math.random() * 10000000) + index * 99;
+        const errors = [];
 
-        // 1. Universal OpenAI API Route
+        // 1. Cloudflare Direct REST API Token Route (Prioritized when explicitly selected or credentials provided)
+        const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
+        const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
+
+        if (engine === 'cf_rest_api' || (accountId && apiToken && engine !== 'universal_api')) {
+          if (accountId && apiToken) {
+            try {
+              const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+              let cfBody = { prompt: finalPrompt };
+
+              if (model.includes('flux-1-schnell')) {
+                cfBody = { prompt: finalPrompt, seed };
+              } else {
+                cfBody.num_steps = steps;
+                cfBody.width = width;
+                cfBody.height = height;
+                cfBody.seed = seed;
+                if (payload.cfgScale) cfBody.guidance = payload.cfgScale;
+                if (negativePrompt) cfBody.negative_prompt = negativePrompt;
+                if (img2imgRef) {
+                  cfBody.image = img2imgRef;
+                  cfBody.strength = strength;
+                }
+              }
+
+              const cfRes = await fetch(cfUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(cfBody)
+              });
+
+              if (cfRes.ok) {
+                const contentType = cfRes.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                  const jsonRes = await cfRes.json();
+                  if (jsonRes.result?.image) {
+                    return { url: `data:image/png;base64,${jsonRes.result.image}`, model, provider: 'CF Direct REST API' };
+                  }
+                } else {
+                  const buf = await cfRes.arrayBuffer();
+                  if (buf && buf.byteLength > 4096) {
+                    return { url: `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`, model, provider: 'CF Direct REST API' };
+                  }
+                }
+              } else {
+                let errText = `HTTP ${cfRes.status}`;
+                try {
+                  const errJson = await cfRes.json();
+                  if (errJson.errors?.[0]?.message) errText = errJson.errors[0].message;
+                } catch(e) {}
+                errors.push(`CF REST API: ${errText}`);
+              }
+            } catch(e) {
+              console.error('CF REST API error:', e);
+              errors.push(`CF REST API: ${e.message}`);
+            }
+          } else if (engine === 'cf_rest_api') {
+            errors.push('CF REST API: 未配置 Cloudflare Account ID 或 API Token 凭证');
+          }
+        }
+
+        // 2. Cloudflare Workers AI Native Binding
+        if (env.AI && (engine === 'cf_workers_ai' || engine !== 'cf_rest_api')) {
+          try {
+            let aiInputs = { prompt: finalPrompt };
+
+            if (model.includes('flux-1-schnell')) {
+              aiInputs = { prompt: finalPrompt, seed };
+            } else {
+              aiInputs.num_steps = steps;
+              if (negativePrompt) aiInputs.negative_prompt = negativePrompt;
+              if (model.includes('stable-diffusion') || model.includes('dreamshaper')) {
+                aiInputs.width = width;
+                aiInputs.height = height;
+                if (img2imgRef) {
+                  aiInputs.image = img2imgRef;
+                  aiInputs.strength = strength;
+                }
+              }
+            }
+
+            const binaryRes = await env.AI.run(model, aiInputs);
+            if (binaryRes) {
+              if (binaryRes instanceof ArrayBuffer || binaryRes instanceof Uint8Array || binaryRes.byteLength) {
+                const u8 = binaryRes instanceof Uint8Array ? binaryRes : new Uint8Array(binaryRes);
+                if (u8.byteLength > 4096) {
+                  return { url: `data:image/png;base64,${uint8ArrayToBase64(u8)}`, model, provider: 'Workers AI Binding' };
+                }
+              } else if (typeof binaryRes === 'object' && binaryRes.image) {
+                return { url: `data:image/png;base64,${binaryRes.image}`, model, provider: 'Workers AI Binding (JSON)' };
+              }
+            }
+            errors.push(`Workers AI: Empty or truncated image response`);
+          } catch(e) {
+            console.error('Cloudflare Workers AI error:', e);
+            errors.push(`Workers AI (${model}): ${e.message}`);
+          }
+        }
+
+        // 3. Universal OpenAI API Route
         if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
             const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
 
             const oaiRes = await fetch(`${baseUrl}/images/generations`, {
@@ -398,85 +538,75 @@ export async function onRequest(context) {
 
             const oaiData = await oaiRes.json();
             if (oaiRes.ok && oaiData.data?.[0]?.url) {
-              return oaiData.data[0].url;
+              return { url: oaiData.data[0].url, model: payload.openaiModel || 'dall-e-3', provider: 'OpenAI API' };
             }
-          } catch(e) {}
-        }
-
-        // 2. Cloudflare Workers AI Native Binding
-        if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
-          try {
-            const aiInputs = { prompt: finalPrompt, num_steps: steps };
-            if (model.includes('stable-diffusion')) {
-              aiInputs.width = width;
-              aiInputs.height = height;
-            }
-            const binaryRes = await env.AI.run(model, aiInputs);
-            return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
-          } catch(e) {}
-        }
-
-        // 3. Direct Cloudflare REST API Token Route
-        const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
-        const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
-        if (accountId && apiToken) {
-          try {
-            const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-            const cfRes = await fetch(cfUrl, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: finalPrompt, width, height, steps })
-            });
-            if (cfRes.ok) {
-              const buf = await cfRes.arrayBuffer();
-              return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`;
-            }
-          } catch(e) {}
-        }
-
-        // 4. Free Pollinations FLUX.1 Engine (Optimized Fast Abort Signal)
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-          const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
-
-          const pollRes = await fetch(pollUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          if (pollRes.ok) {
-            const pollBuf = await pollRes.arrayBuffer();
-            return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
+            errors.push(`OpenAI API: ${oaiData.error?.message || 'Request failed'}`);
+          } catch(e) {
+            console.error('OpenAI generation error:', e);
+            errors.push(`OpenAI: ${e.message}`);
           }
-        } catch(e) {}
+        }
 
-        // 5. High-Speed Secondary Pollinations Route Fallback
-        try {
-          const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-          const pollRes2 = await fetch(backupUrl);
-          if (pollRes2.ok) {
-            const pollBuf2 = await pollRes2.arrayBuffer();
-            return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
+        // 4. Free Pollinations FLUX.1 & Schnell Model Route (45s Abort Signal with Retry)
+        const pollModels = ['flux', 'flux-realism', 'turbo'];
+        for (const pollModel of pollModels) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=${pollModel}&nologo=true`;
+
+            const pollRes = await fetch(pollUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (pollRes.ok) {
+              const pollBuf = await pollRes.arrayBuffer();
+              if (pollBuf && pollBuf.byteLength > 4096) {
+                return { url: `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`, model: `Pollinations ${pollModel.toUpperCase()}`, provider: 'Pollinations AI' };
+              }
+            }
+            errors.push(`Pollinations ${pollModel} HTTP ${pollRes.status}`);
+          } catch(e) {
+            console.error(`Pollinations ${pollModel} error:`, e);
+            errors.push(`Pollinations ${pollModel}: ${e.message}`);
           }
-        } catch(e) {}
+        }
 
-        // 6. Zero-Failure Guaranteed High-Res Vector SVG Fallback
-        return createGuaranteedVectorArtDataUrl(prompt, width, height, seed);
+        // Return clear error details instead of fake SVG graphics
+        throw new Error(`绘图算力调用失败 (${errors.join(' | ') || '无响应通道'})`);
       };
 
-      // Run ALL batch images in parallel via Promise.all
+      // Execute ALL batch tasks in parallel via Promise.allSettled
       const imagePromises = [];
       for (let i = 0; i < count; i++) {
         imagePromises.push(generateSingleImage(i));
       }
 
-      const generatedImages = await Promise.all(imagePromises);
+      const settledResults = await Promise.allSettled(imagePromises);
+      const outputImages = settledResults.map((res, idx) => {
+        if (res.status === 'fulfilled') {
+          return { ok: true, url: res.value.url, model: res.value.model, provider: res.value.provider };
+        } else {
+          return { ok: false, error: res.reason?.message || '生成失败', index: idx + 1 };
+        }
+      });
+
+      const successCount = outputImages.filter(img => img.ok).length;
+      if (successCount === 0) {
+        return new Response(JSON.stringify({
+          ok: false,
+          error: '全部算力通道均调用失败',
+          detail: outputImages.map(i => i.error).join('; ')
+        }), { status: 502, headers: jsonHeaders });
+      }
 
       return new Response(JSON.stringify({
         ok: true,
         id: `gen-${Date.now()}`,
-        url: generatedImages[0],
-        images: generatedImages,
-        count: generatedImages.length
+        url: (outputImages.find(i => i.ok) || {}).url,
+        images: outputImages.map(i => i.ok ? i.url : null),
+        results: outputImages,
+        count: outputImages.length,
+        successCount
       }), { headers: jsonHeaders });
     }
 
@@ -485,42 +615,6 @@ export async function onRequest(context) {
   } catch (err) {
     return new Response(JSON.stringify({ ok: false, error: err.message }), { status: 500, headers: jsonHeaders });
   }
-}
-
-// Zero-Failure SVG Vector Art Data URL Generator
-function createGuaranteedVectorArtDataUrl(prompt, width, height, seed) {
-  const colors = [
-    ['#3b82f6', '#8b5cf6', '#ec4899'],
-    ['#f97316', '#eab308', '#10b981'],
-    ['#06b6d4', '#3b82f6', '#6366f1'],
-    ['#84cc16', '#10b981', '#06b6d4']
-  ];
-  const palette = colors[seed % colors.length];
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 800 800">
-    <defs>
-      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="${palette[0]}" />
-        <stop offset="50%" stop-color="${palette[1]}" />
-        <stop offset="100%" stop-color="${palette[2]}" />
-      </linearGradient>
-      <filter id="f" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="40" />
-      </filter>
-    </defs>
-    <rect width="100%" height="100%" fill="#090d16" />
-    <circle cx="400" cy="400" r="300" fill="url(#g)" opacity="0.6" filter="url(#f)" />
-    <circle cx="250" cy="300" r="180" fill="${palette[0]}" opacity="0.4" filter="url(#f)" />
-    <circle cx="550" cy="500" r="200" fill="${palette[2]}" opacity="0.5" filter="url(#f)" />
-    <text x="400" y="380" font-family="sans-serif" font-size="42" font-weight="900" fill="#ffffff" text-anchor="middle">FOX AI ART</text>
-    <text x="400" y="440" font-family="sans-serif" font-size="20" font-weight="bold" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXml(prompt.slice(0, 40))}</text>
-  </svg>`;
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-function escapeXml(str) {
-  return str.replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\'': '&apos;', '"': '&quot;' }[c]));
 }
 
 function uint8ArrayToBase64(uint8Array) {
