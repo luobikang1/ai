@@ -45,6 +45,7 @@ export async function onRequest(context) {
         status: 'online',
         hasAI: !!env.AI,
         hasToken: !!env.CF_API_TOKEN,
+        hasAccountId: !!env.CF_ACCOUNT_ID,
         hasD1: !!db,
         hasR2: !!bucket
       }), { headers: jsonHeaders });
@@ -58,7 +59,7 @@ export async function onRequest(context) {
       const apiToken = body.apiToken || env.CF_API_TOKEN;
 
       if (!accountId || !apiToken) {
-        return new Response(JSON.stringify({ ok: false, message: '未配置账户 ID 或 API Token，已自动启用全局极速并发 FLUX 算力' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, message: '未配置 Cloudflare Account ID 或 API Token，已自动启用全局极速并发算力' }), { headers: jsonHeaders });
       }
 
       try {
@@ -69,7 +70,7 @@ export async function onRequest(context) {
         if (testRes.ok && testData.success) {
           return new Response(JSON.stringify({ ok: true, valid: true, message: 'Cloudflare API Token 凭证连通完美！算力通道 100% 畅通！' }), { headers: jsonHeaders });
         }
-        return new Response(JSON.stringify({ ok: false, valid: false, message: testData.errors?.[0]?.message || 'Token 验证失败，请检查账户权限' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, valid: false, message: testData.errors?.[0]?.message || 'Token 验证失败，请检查账户权限与 Account ID' }), { headers: jsonHeaders });
       } catch (err) {
         return new Response(JSON.stringify({ ok: false, valid: false, message: err.message }), { headers: jsonHeaders });
       }
@@ -321,7 +322,7 @@ export async function onRequest(context) {
       const dataUrl = body.dataUrl || body.fileBase64;
 
       if (!key || !dataUrl) {
-        return new Response(JSON.stringify({ ok: false, error: '缺失文件名 key 或文件数据' }), { headers: jsonHeaders });
+        return new Response(JSON.stringify({ ok: false, error: '缺失文件名 key 或文件数据' }), { status: 400, headers: jsonHeaders });
       }
 
       if (bucket) {
@@ -418,38 +419,75 @@ export async function onRequest(context) {
         const seed = Math.floor(Math.random() * 10000000) + index * 99;
         const errors = [];
 
-        // 1. Universal OpenAI API Route
-        if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000);
-            const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
+        // 1. Cloudflare Direct REST API Token Route (Prioritized when explicitly selected or credentials provided)
+        const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
+        const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
 
-            const oaiRes = await fetch(`${baseUrl}/images/generations`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${payload.openaiApiKey}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model: payload.openaiModel || 'dall-e-3', prompt: finalPrompt, n: 1, size: `${width}x${height}` }),
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+        if (engine === 'cf_rest_api' || (accountId && apiToken && engine !== 'universal_api')) {
+          if (accountId && apiToken) {
+            try {
+              const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+              let cfBody = { prompt: finalPrompt };
 
-            const oaiData = await oaiRes.json();
-            if (oaiRes.ok && oaiData.data?.[0]?.url) {
-              return { url: oaiData.data[0].url, model: payload.openaiModel || 'dall-e-3', provider: 'OpenAI API' };
+              if (model.includes('flux-1-schnell')) {
+                cfBody = { prompt: finalPrompt, seed };
+              } else {
+                cfBody.num_steps = steps;
+                cfBody.width = width;
+                cfBody.height = height;
+                cfBody.seed = seed;
+                if (payload.cfgScale) cfBody.guidance = payload.cfgScale;
+                if (negativePrompt) cfBody.negative_prompt = negativePrompt;
+                if (img2imgRef) {
+                  cfBody.image = img2imgRef;
+                  cfBody.strength = strength;
+                }
+              }
+
+              const cfRes = await fetch(cfUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(cfBody)
+              });
+
+              if (cfRes.ok) {
+                const contentType = cfRes.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                  const jsonRes = await cfRes.json();
+                  if (jsonRes.result?.image) {
+                    return { url: `data:image/png;base64,${jsonRes.result.image}`, model, provider: 'CF Direct REST API' };
+                  }
+                } else {
+                  const buf = await cfRes.arrayBuffer();
+                  if (buf && buf.byteLength > 4096) {
+                    return { url: `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`, model, provider: 'CF Direct REST API' };
+                  }
+                }
+              } else {
+                let errText = `HTTP ${cfRes.status}`;
+                try {
+                  const errJson = await cfRes.json();
+                  if (errJson.errors?.[0]?.message) errText = errJson.errors[0].message;
+                } catch(e) {}
+                errors.push(`CF REST API: ${errText}`);
+              }
+            } catch(e) {
+              console.error('CF REST API error:', e);
+              errors.push(`CF REST API: ${e.message}`);
             }
-            errors.push(`OpenAI API: ${oaiData.error?.message || 'Request failed'}`);
-          } catch(e) {
-            console.error('OpenAI generation error:', e);
-            errors.push(`OpenAI: ${e.message}`);
+          } else if (engine === 'cf_rest_api') {
+            errors.push('CF REST API: 未配置 Cloudflare Account ID 或 API Token 凭证');
           }
         }
 
         // 2. Cloudflare Workers AI Native Binding
-        if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
+        if (env.AI && (engine === 'cf_workers_ai' || engine !== 'cf_rest_api')) {
           try {
             let aiInputs = { prompt: finalPrompt };
 
-            // Model parameter tuning: FLUX Schnell only accepts prompt and seed
             if (model.includes('flux-1-schnell')) {
               aiInputs = { prompt: finalPrompt, seed };
             } else {
@@ -483,45 +521,29 @@ export async function onRequest(context) {
           }
         }
 
-        // 3. Direct Cloudflare REST API Token Route
-        const accountId = payload.cfAccountId || env.CF_ACCOUNT_ID;
-        const apiToken = payload.cfApiToken || env.CF_API_TOKEN;
-        if (accountId && apiToken) {
+        // 3. Universal OpenAI API Route
+        if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
-            const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-            let cfBody = { prompt: finalPrompt };
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
 
-            if (model.includes('flux-1-schnell')) {
-              cfBody = { prompt: finalPrompt, seed };
-            } else {
-              cfBody.num_steps = steps;
-              if (negativePrompt) cfBody.negative_prompt = negativePrompt;
-            }
-
-            const cfRes = await fetch(cfUrl, {
+            const oaiRes = await fetch(`${baseUrl}/images/generations`, {
               method: 'POST',
-              headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify(cfBody)
+              headers: { 'Authorization': `Bearer ${payload.openaiApiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: payload.openaiModel || 'dall-e-3', prompt: finalPrompt, n: 1, size: `${width}x${height}` }),
+              signal: controller.signal
             });
+            clearTimeout(timeoutId);
 
-            if (cfRes.ok) {
-              const contentType = cfRes.headers.get('content-type') || '';
-              if (contentType.includes('application/json')) {
-                const jsonRes = await cfRes.json();
-                if (jsonRes.result?.image) {
-                  return { url: `data:image/png;base64,${jsonRes.result.image}`, model, provider: 'CF REST API' };
-                }
-              } else {
-                const buf = await cfRes.arrayBuffer();
-                if (buf && buf.byteLength > 4096) {
-                  return { url: `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(buf))}`, model, provider: 'CF REST API' };
-                }
-              }
+            const oaiData = await oaiRes.json();
+            if (oaiRes.ok && oaiData.data?.[0]?.url) {
+              return { url: oaiData.data[0].url, model: payload.openaiModel || 'dall-e-3', provider: 'OpenAI API' };
             }
-            errors.push(`CF REST API HTTP ${cfRes.status}`);
+            errors.push(`OpenAI API: ${oaiData.error?.message || 'Request failed'}`);
           } catch(e) {
-            console.error('CF REST API error:', e);
-            errors.push(`CF REST API: ${e.message}`);
+            console.error('OpenAI generation error:', e);
+            errors.push(`OpenAI: ${e.message}`);
           }
         }
 
