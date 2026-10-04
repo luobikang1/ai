@@ -42,14 +42,37 @@ export const PRESET_MODELS = [
     description: '万能二次元插画与游戏3D CG模型，色彩鲜艳细节丰富。',
     cover: '/assets/fox-avatar.webp',
     sourceUrl: 'https://civitai.com'
+  },
+  {
+    id: '@cf/prompthero/openjourney',
+    name: 'OpenJourney v4 (Midjourney画风) [免费算力]',
+    author: 'PromptHero',
+    category: '艺术/插画',
+    isFree: true,
+    nsfwSupport: true,
+    description: '模拟 Midjourney 顶级艺术风格与色彩大片表现。',
+    cover: '/assets/fox-avatar.webp',
+    sourceUrl: 'https://huggingface.co'
+  },
+  {
+    id: '@cf/runwayml/stable-diffusion-v1-5-inpainting',
+    name: 'SD v1.5 Inpainting (局部重绘/精修) [免费算力]',
+    author: 'RunwayML',
+    category: '修图/精修',
+    isFree: true,
+    nsfwSupport: true,
+    description: '稳定流畅的 SD 1.5 图像重绘与局部补全经典模型。',
+    cover: '/assets/fox-avatar.webp',
+    sourceUrl: 'https://huggingface.co'
   }
 ];
 
 export const COMPUTE_ENGINES = [
-  { id: 'cf_workers_ai', name: 'Cloudflare Workers AI (免费内置算力)', isFree: true },
+  { id: 'pollinations_ai', name: 'Pollinations FLUX.1 & Turbo (免Key全球免限流算力)', isFree: true },
+  { id: 'cf_workers_ai', name: 'Cloudflare Workers AI (免费内置高精算力)', isFree: true },
+  { id: 'huggingface_free', name: 'HuggingFace Free Public Inference (社区公共算力)', isFree: true },
   { id: 'cf_rest_api', name: 'Cloudflare Direct REST API (凭证直连算力)', isFree: true },
-  { id: 'openai_compatible', name: 'OpenAI 兼容通用图像算力 (DALL-E 3 / 通用 API)', isFree: false },
-  { id: 'pollinations_ai', name: 'Pollinations FLUX AI (免Key全功能算力)', isFree: true }
+  { id: 'openai_compatible', name: 'OpenAI 兼容通用图像算力 (DALL-E 3 / 通用 API)', isFree: false }
 ];
 
 export const BACKGROUND_PRESETS = [
