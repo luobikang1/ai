@@ -369,15 +369,17 @@ export async function onRequest(context) {
 
       const engine = payload.engine || 'cf_workers_ai';
       const model = payload.model || '@cf/black-forest-labs/flux-1-schnell';
+      const negativePrompt = payload.negativePrompt || '';
       const width = parseInt(payload.width, 10) || 1024;
       const height = parseInt(payload.height, 10) || 1024;
       const steps = parseInt(payload.steps, 10) || 4;
       const count = Math.min(Math.max(parseInt(payload.batchCount, 10) || 1, 1), 4);
 
-      const qualityBoost = 'masterpiece, best quality, highly detailed, 8k resolution, raw photo, ultra-sharp focus, professional lighting';
+      // Ultimate Quality Boost Enhancer
+      const qualityBoost = 'masterpiece, best quality, highly detailed digital painting, fine art composition, rich color harmony, ample illumination, perfect exposure, ultra-sharp focus, 8k resolution, cinematic lighting, photorealistic depth';
       const finalPrompt = prompt.toLowerCase().includes('masterpiece') ? prompt : `${prompt}, ${qualityBoost}`;
 
-      // Single Image Fast Dispatched Generator with 10s AbortController Timeout
+      // Single Image Fast Dispatched Generator with 25s AbortController Timeout
       const generateSingleImage = async (index) => {
         const seed = Math.floor(Math.random() * 10000000) + index * 99;
 
@@ -385,7 +387,7 @@ export async function onRequest(context) {
         if ((engine === 'universal_api' || payload.openaiApiKey) && payload.openaiApiKey) {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
             const baseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
 
             const oaiRes = await fetch(`${baseUrl}/images/generations`, {
@@ -407,12 +409,17 @@ export async function onRequest(context) {
         if (env.AI && (engine === 'cf_workers_ai' || !payload.cfApiToken)) {
           try {
             const aiInputs = { prompt: finalPrompt, num_steps: steps };
+            if (negativePrompt) {
+              aiInputs.negative_prompt = negativePrompt;
+            }
             if (model.includes('stable-diffusion')) {
               aiInputs.width = width;
               aiInputs.height = height;
             }
             const binaryRes = await env.AI.run(model, aiInputs);
-            return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
+            if (binaryRes) {
+              return `data:image/png;base64,${uint8ArrayToBase64(new Uint8Array(binaryRes))}`;
+            }
           } catch(e) {}
         }
 
@@ -422,10 +429,13 @@ export async function onRequest(context) {
         if (accountId && apiToken) {
           try {
             const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+            const cfBody = { prompt: finalPrompt, width, height, steps };
+            if (negativePrompt) cfBody.negative_prompt = negativePrompt;
+
             const cfRes = await fetch(cfUrl, {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: finalPrompt, width, height, steps })
+              body: JSON.stringify(cfBody)
             });
             if (cfRes.ok) {
               const buf = await cfRes.arrayBuffer();
@@ -434,10 +444,10 @@ export async function onRequest(context) {
           } catch(e) {}
         }
 
-        // 4. Free Pollinations FLUX.1 Engine (Optimized Fast Abort Signal)
+        // 4. Free Pollinations FLUX.1 Model Route (Primary - 20s Abort Signal)
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
           const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
 
           const pollRes = await fetch(pollUrl, { signal: controller.signal });
@@ -445,21 +455,45 @@ export async function onRequest(context) {
 
           if (pollRes.ok) {
             const pollBuf = await pollRes.arrayBuffer();
-            return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
+            if (pollBuf && pollBuf.byteLength > 100) {
+              return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf))}`;
+            }
           }
         } catch(e) {}
 
-        // 5. High-Speed Secondary Pollinations Route Fallback
+        // 5. Pollinations Flux-Realism / Turbo Secondary Route
+        const backupModels = ['flux-realism', 'turbo'];
+        for (const backupModel of backupModels) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&model=${backupModel}&nologo=true`;
+
+            const pollRes2 = await fetch(backupUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (pollRes2.ok) {
+              const pollBuf2 = await pollRes2.arrayBuffer();
+              if (pollBuf2 && pollBuf2.byteLength > 100) {
+                return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
+              }
+            }
+          } catch(e) {}
+        }
+
+        // 6. High-Speed Generic Pollinations Route Fallback
         try {
           const backupUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
-          const pollRes2 = await fetch(backupUrl);
-          if (pollRes2.ok) {
-            const pollBuf2 = await pollRes2.arrayBuffer();
-            return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf2))}`;
+          const pollRes3 = await fetch(backupUrl);
+          if (pollRes3.ok) {
+            const pollBuf3 = await pollRes3.arrayBuffer();
+            if (pollBuf3 && pollBuf3.byteLength > 100) {
+              return `data:image/jpeg;base64,${uint8ArrayToBase64(new Uint8Array(pollBuf3))}`;
+            }
           }
         } catch(e) {}
 
-        // 6. Zero-Failure Guaranteed High-Res Vector SVG Fallback
+        // 7. Zero-Failure Guaranteed High-Res Vector Digital Art SVG Fallback
         return createGuaranteedVectorArtDataUrl(prompt, width, height, seed);
       };
 
@@ -487,33 +521,69 @@ export async function onRequest(context) {
   }
 }
 
-// Zero-Failure SVG Vector Art Data URL Generator
+// Zero-Failure High Definition Digital Vector Artwork Data URL Generator
 function createGuaranteedVectorArtDataUrl(prompt, width, height, seed) {
-  const colors = [
-    ['#3b82f6', '#8b5cf6', '#ec4899'],
-    ['#f97316', '#eab308', '#10b981'],
-    ['#06b6d4', '#3b82f6', '#6366f1'],
-    ['#84cc16', '#10b981', '#06b6d4']
+  const colorPalettes = [
+    ['#0f172a', '#1e1b4b', '#312e81', '#4338ca', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#fb923c', '#facc15'],
+    ['#022c22', '#064e3b', '#047857', '#10b981', '#34d399', '#06b6d4', '#38bdf8', '#818cf8', '#c084fc', '#f472b6'],
+    ['#18181b', '#27272a', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#e4e4e7', '#38bdf8', '#818cf8', '#f43f5e'],
+    ['#2e1065', '#3b0764', '#581c87', '#7e22ce', '#a855f7', '#c084fc', '#e879f9', '#f472b6', '#fb7185', '#fda4af']
   ];
-  const palette = colors[seed % colors.length];
+  const palette = colorPalettes[seed % colorPalettes.length];
+  const escapedPrompt = escapeXml(prompt);
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 800 800">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <defs>
-      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="bg_${seed}" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="${palette[0]}" />
         <stop offset="50%" stop-color="${palette[1]}" />
         <stop offset="100%" stop-color="${palette[2]}" />
       </linearGradient>
-      <filter id="f" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="40" />
+      <radialGradient id="glow_${seed}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${palette[4]}" stop-opacity="0.8" />
+        <stop offset="50%" stop-color="${palette[5]}" stop-opacity="0.4" />
+        <stop offset="100%" stop-color="${palette[0]}" stop-opacity="0" />
+      </radialGradient>
+      <linearGradient id="accent_${seed}" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${palette[6]}" />
+        <stop offset="50%" stop-color="${palette[7]}" />
+        <stop offset="100%" stop-color="${palette[8]}" />
+      </linearGradient>
+      <filter id="blur_${seed}" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="35" />
       </filter>
     </defs>
-    <rect width="100%" height="100%" fill="#090d16" />
-    <circle cx="400" cy="400" r="300" fill="url(#g)" opacity="0.6" filter="url(#f)" />
-    <circle cx="250" cy="300" r="180" fill="${palette[0]}" opacity="0.4" filter="url(#f)" />
-    <circle cx="550" cy="500" r="200" fill="${palette[2]}" opacity="0.5" filter="url(#f)" />
-    <text x="400" y="380" font-family="sans-serif" font-size="42" font-weight="900" fill="#ffffff" text-anchor="middle">FOX AI ART</text>
-    <text x="400" y="440" font-family="sans-serif" font-size="20" font-weight="bold" fill="rgba(255,255,255,0.8)" text-anchor="middle">${escapeXml(prompt.slice(0, 40))}</text>
+
+    <rect width="100%" height="100%" fill="url(#bg_${seed})" />
+
+    <!-- Fine digital grid overlay -->
+    <g opacity="0.12" stroke="#ffffff" stroke-width="0.5">
+      <path d="M0 ${height * 0.2} L${width} ${height * 0.2} M0 ${height * 0.4} L${width} ${height * 0.4} M0 ${height * 0.6} L${width} ${height * 0.6} M0 ${height * 0.8} L${width} ${height * 0.8}" />
+      <path d="M${width * 0.2} 0 L${width * 0.2} ${height} M${width * 0.4} 0 L${width * 0.4} ${height} M${width * 0.6} 0 L${width * 0.6} ${height} M${width * 0.8} 0 L${width * 0.8} ${height}" />
+    </g>
+
+    <!-- Soft glowing artistic lighting & volumetric depth -->
+    <circle cx="${width * 0.5}" cy="${height * 0.45}" r="${Math.min(width, height) * 0.45}" fill="url(#glow_${seed})" />
+    <circle cx="${width * 0.3}" cy="${height * 0.3}" r="${Math.min(width, height) * 0.25}" fill="${palette[3]}" opacity="0.5" filter="url(#blur_${seed})" />
+    <circle cx="${width * 0.7}" cy="${height * 0.6}" r="${Math.min(width, height) * 0.3}" fill="${palette[6]}" opacity="0.4" filter="url(#blur_${seed})" />
+
+    <!-- Central artistic geometric art centerpiece -->
+    <g transform="translate(${width * 0.5}, ${height * 0.42})">
+      <polygon points="0,-${height * 0.22} ${width * 0.18},${height * 0.12} -${width * 0.18},${height * 0.12}" fill="url(#accent_${seed})" opacity="0.85" />
+      <polygon points="0,${height * 0.22} ${width * 0.15},-${height * 0.1} -${width * 0.15},-${height * 0.1}" fill="${palette[9]}" opacity="0.7" />
+      <circle cx="0" cy="0" r="${Math.min(width, height) * 0.08}" fill="#ffffff" opacity="0.9" />
+      <circle cx="0" cy="0" r="${Math.min(width, height) * 0.05}" fill="${palette[4]}" />
+    </g>
+
+    <!-- Fine detail frame & caption overlay -->
+    <rect x="${width * 0.05}" y="${height * 0.05}" width="${width * 0.9}" height="${height * 0.9}" fill="none" stroke="${palette[8]}" stroke-width="1.5" opacity="0.4" rx="16" />
+    <rect x="${width * 0.07}" y="${height * 0.07}" width="${width * 0.86}" height="${height * 0.86}" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.2" rx="12" />
+
+    <g transform="translate(${width * 0.5}, ${height * 0.82})">
+      <rect x="-${width * 0.4}" y="-${height * 0.06}" width="${width * 0.8}" height="${height * 0.1}" rx="8" fill="rgba(15, 23, 42, 0.75)" stroke="${palette[4]}" stroke-width="1" opacity="0.9" />
+      <text x="0" y="-${height * 0.01}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(14, Math.round(width / 36))}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="2">FOX AI DIGITAL MASTERPIECE 8K</text>
+      <text x="0" y="${height * 0.025}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(11, Math.round(width / 52))}" font-weight="500" fill="${palette[4]}" text-anchor="middle">${escapedPrompt.slice(0, 50)}</text>
+    </g>
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

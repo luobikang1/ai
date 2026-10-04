@@ -63,12 +63,12 @@ export const BACKGROUND_PRESETS = [
 
 export const ART_STYLES = [
   { id: 'none', name: '预设风格', prompt: '' },
-  { id: 'anime', name: '日系动漫', prompt: 'masterpiece, best quality, anime style, highly detailed, vibrant colors, makoto shinkai aesthetic' },
-  { id: 'photorealistic', name: '写实人像', prompt: 'photorealistic, 8k resolution, raw photo, highly detailed skin texture, professional lighting, cinematic' },
-  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk style, neon lights, futuristic city background, glowing highlights, volumetric lighting' },
-  { id: 'chinese_poster', name: '国风海报', prompt: 'traditional chinese art style, elegant poster design, ink painting, golden ratio, masterpiece, highly detailed' },
-  { id: '3d_pixar', name: '3D皮克斯', prompt: '3d render, pixar style, cute, vibrant colors, smooth lighting, octane render, 4k' },
-  { id: 'oil_painting', name: '复古油画', prompt: 'oil painting style, rich texture, van gogh artistic stroke, masterpiece, museum quality' }
+  { id: 'anime', name: '日系动漫', prompt: 'masterpiece, best quality, anime style, digital art, highly detailed, vibrant color balance, golden ratio composition, perfect exposure, smooth shading, makoto shinkai aesthetic' },
+  { id: 'photorealistic', name: '写实人像', prompt: 'photorealistic digital painting, 8k resolution, raw photo, exquisite skin texture, ample illumination, dramatic volumetric lighting, ideal exposure, realistic depth of field, sharp focus' },
+  { id: 'cyberpunk', name: '赛博朋克', prompt: 'cyberpunk digital artwork, futuristic neon city, rich color saturation, dynamic composition, glowing atmosphere, ray tracing lighting, hyper detailed, 8k resolution' },
+  { id: 'chinese_poster', name: '国风海报', prompt: 'traditional chinese digital illustration, elegant golden ratio composition, refined ink wash aesthetic, balanced lighting, exquisite oriental details, artistic masterpiece, 8k' },
+  { id: '3d_pixar', name: '3D皮克斯', prompt: '3d render masterpiece, pixar animation art style, vibrant pastel palette, soft ambient occlusion, ample studio illumination, ultra detailed textures, 8k resolution, octane render' },
+  { id: 'oil_painting', name: '复古油画', prompt: 'fine art oil painting, rich impasto texture, vibrant color palette, dynamic brush strokes, expressive lighting and exposure, museum digital masterpiece' }
 ];
 
 export const NEGATIVE_PROMPT_PRESETS = [

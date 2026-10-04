@@ -1731,7 +1731,10 @@ async function handlePromptTranslation() {
       if (promptInput) promptInput.value = state.prompt;
     }
   } catch (err) {
-    alert(`翻译优化提示: ${err.message}`);
+    const boost = 'masterpiece, best quality, digital artwork, artistic composition, rich color harmony, ample lighting, ideal exposure, exquisite details, 8k resolution';
+    state.prompt = state.prompt.includes('masterpiece') ? state.prompt : `${state.prompt}, ${boost}`;
+    const promptInput = document.getElementById('prompt-input');
+    if (promptInput) promptInput.value = state.prompt;
   }
 }
 
@@ -1744,9 +1747,9 @@ async function handleGenerateImage() {
     const styleObj = ART_STYLES.find(s => s.id === state.selectedStyle);
     let finalPrompt = styleObj && styleObj.prompt ? `${state.prompt}, ${styleObj.prompt}` : state.prompt;
 
-    // Automatic quality boost for free compute engines to ensure high quality results
+    // Automatic quality boost for digital art composition, rich colors, ample lighting, and ideal exposure
     if (!finalPrompt.toLowerCase().includes('masterpiece')) {
-      finalPrompt = `${finalPrompt}, masterpiece, best quality, highly detailed, 8k resolution, cinematic lighting, sharp focus`;
+      finalPrompt = `${finalPrompt}, masterpiece, best quality, fine digital art composition, rich color balance, ample natural illumination, perfect exposure, highly exquisite details, 8k resolution, ultra-sharp focus`;
     }
 
     const data = await fetchWithTimeout('/api/generate', {
