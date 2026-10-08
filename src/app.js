@@ -224,7 +224,7 @@ function renderApp() {
     <div class="min-h-screen flex flex-col pb-24">
       <header class="sticky top-0 z-40 glass-panel !rounded-none !border-x-0 !border-t-0 px-3 py-2 flex items-center justify-between shadow-sm">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg overflow-hidden shadow border border-blue-500/30 flex-shrink-0 bg-slate-900">
+          <div class="w-8 h-8 rounded-lg overflow-hidden shadow border border-blue-500/30 flex-shrink-0 bg-slate-900 cursor-pointer" id="header-avatar-trigger" title="点击更改个性化头像">
             <img src="${state.customAvatar}" class="w-full h-full object-cover" />
           </div>
           <div class="flex items-center gap-1.5">
@@ -327,7 +327,7 @@ function renderWhiteFoxAuthScreen() {
 
         <div class="text-center space-y-2">
           <div class="w-20 h-20 rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/30 mx-auto border-2 border-blue-500/40">
-            <img src="${DEFAULT_AVATAR}" class="w-full h-full object-cover" />
+            <img src="${state.customAvatar}" class="w-full h-full object-cover" />
           </div>
           <h2 class="text-2xl font-black fox-gradient-text tracking-tight">${t('appTitle')}</h2>
           <p class="text-xs text-slate-500 font-medium">管理员密码直登 / 邮箱通用免密登录与注册</p>
@@ -1184,14 +1184,27 @@ function renderSettingsWorkspace() {
       </div>
 
       <div class="space-y-3">
-        <!-- 1. 一键切换夜间模式 + 主题和背景调色 -->
-        ${renderAccordion('sec1', '🌙 1. 一键切换夜间模式 & 主题背景调色', `
+        <!-- 1. 一键切换夜间模式 + 主题和背景调色 + 头像自定义 -->
+        ${renderAccordion('sec1', '🌙 1. 界面主题、背景色调 & 个人头像自定义', `
           <div class="space-y-4 text-xs">
             <div class="flex items-center justify-between">
               <span class="font-bold">黑夜/白天视觉主题模式：</span>
               <button id="toggle-night-btn" class="fox-btn-secondary text-xs">
                 ${state.themeMode === 'dark' ? '☀️ 切换浅色模式' : '🌙 切换夜间模式'}
               </button>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <label class="block font-bold">👤 个人头像自定义上传：</label>
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl overflow-hidden border border-blue-500/40 shadow-sm bg-slate-900 flex-shrink-0">
+                  <img id="avatar-preview-img" src="${state.customAvatar}" class="w-full h-full object-cover" />
+                </div>
+                <div class="space-y-1">
+                  <input type="file" id="custom-avatar-file-input" accept="image/*" class="text-xs text-slate-500" />
+                  <button id="reset-avatar-btn" type="button" class="text-[11px] text-red-500 font-bold hover:underline block">恢复默认白狐头像</button>
+                </div>
+              </div>
             </div>
 
             <div class="space-y-2">
@@ -1409,9 +1422,37 @@ function bindGlobalEvents() {
       localStorage.setItem('fox_engine_choice', state.settings.engineChoice);
       renderApp();
     }
+
+    if (e.target.id === 'custom-avatar-file-input') {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          state.customAvatar = evt.target.result;
+          localStorage.setItem('fox_custom_avatar', state.customAvatar);
+          renderApp();
+        };
+        reader.readAsDataURL(file);
+      }
+    }
   });
 
   document.addEventListener('click', async (e) => {
+    if (e.target.id === 'reset-avatar-btn') {
+      state.customAvatar = DEFAULT_AVATAR;
+      localStorage.setItem('fox_custom_avatar', DEFAULT_AVATAR);
+      renderApp();
+      return;
+    }
+
+    if (e.target.closest('#header-avatar-trigger')) {
+      state.activeTab = 'settings';
+      state.accordionStates['sec1'] = true;
+      localStorage.setItem('fox_accordion_states', JSON.stringify(state.accordionStates));
+      renderApp();
+      return;
+    }
+
     const addTagBtn = e.target.closest('[data-add-tag]');
     if (addTagBtn) {
       const tag = addTagBtn.getAttribute('data-add-tag');
